@@ -142,12 +142,39 @@ Decisão registrada em 2026-07-12 (mesma lacuna que motivou T059 antes de ser fo
 | Tópico (origem: booking) | Consumido para | Efeito |
 |---|---|---|
 | `booking.confirmed` | Manter `BOOKINGCOUNT#<data>#<tipoPasseio>` | Incrementa o contador da réplica local |
-| `booking.cancelled` | Manter `BOOKINGCOUNT#<data>#<tipoPasseio>` + fechar tentativa de transferência (T059) | Decrementa o contador da réplica local; se a origem for uma oferta de transferência (`vessel.transfer.viable`) não aceita/expirada, também fecha o registro em `TRANSFER#<transferId>` (T059, sem ação adicional de dados) |
-| `booking.transferred` | Fechar tentativa de transferência (T059) | Move a reserva para a embarcação/dia de destino combinado, atualizando `DeclaredAvailability`/`SEATLIMIT` do destino — não afeta `BOOKINGCOUNT` da embarcação original (a reserva não foi cancelada, só migrou de embarcação) |
+| `booking.cancelled` | Manter `BOOKINGCOUNT#<data>#<tipoPasseio>` + fechar tentativa de transferência (T059) | Decrementa o contador da réplica local; se `transferAttemptId` vier preenchido (oferta de transferência não aceita/expirada), também fecha o registro em `TRANSFER#<transferAttemptId>` (T059, sem ação adicional de dados) |
+| `booking.transferred` | Fechar tentativa de transferência (T059) | Move a reserva para a embarcação/dia de destino combinado, localizando `TRANSFER#<transferAttemptId>` — o efeito exato sobre `DeclaredAvailability`/`SEATLIMIT` do destino ainda não está fechado (ver nota abaixo), mas a correlação com a tentativa certa já está garantida pelo `id` |
 
 Ambos os tópicos já existem no módulo booking (`booking.cancelled`, `booking.transferred` — ver `plan-booking.md`, T053-T055); `booking.confirmed` é consumido aqui pela primeira vez especificamente para popular `BOOKINGCOUNT`. A fila SQS de suporte (T006b) assina os três, entregues a uma única Lambda (`booking_events_consumer`, infra/lambda.tf) que roteia por atributo de mensagem `event-type` (mesma convenção do publisher, `SnsEventListener`).
 
-**Payload de `booking.confirmed` (proposto por este módulo em T059b, a confirmar com `tasks-booking.md` T053):** `{ "vesselId": string, "data": "yyyy-MM-dd", "tipoPasseio": "alto_mar"|"orla" }`.
+---
+
+## Contrato da Saga — revisão de 2026-07-12 (antes da Fase 3.1 do booking)
+
+Revisão feita antes de iniciar a implementação do módulo booking, para os dois lados nascerem alinhados em vez de descobrir divergência só na Fase 3.4. Cobre o payload exato de cada evento, nos dois sentidos.
+
+**Envelope de transporte (ambos os sentidos):** SNS → SQS sem raw message delivery — o corpo de cada mensagem SQS é o envelope de notificação do SNS (`{"Message": "<payload serializado>", "MessageAttributes": {"event-type": {"Value": "..."}}, ...}`), com o payload de negócio como string JSON dentro do campo `Message`. O roteamento por tipo de evento usa o atributo de mensagem `event-type` (nome curto do tópico), não o nome completo do ARN. Datas trafegam sempre como string ISO-8601 (`yyyy-MM-dd`) — cada módulo é livre para modelar esse campo como `String` ou `LocalDate` na sua própria classe de payload, o formato no fio é o mesmo (`LocalDate` do Jackson/Spring Boot serializa exatamente assim por padrão).
+
+**Publicados por este módulo (já implementados — `SnsEventListener`, T052-T055):**
+
+| Evento | Payload (nomes de campo exatos) |
+|---|---|
+| `vessel.availability.changed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", disponivel: boolean, motivo: string\|null}` |
+| `vessel.seatlimit.changed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", limite: int}` |
+| `vessel.cancellation.operator-initiated` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", motivo: string}` |
+| `vessel.transfer.viable` | `{id: string, vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", targetVesselId: string, motivo: string}` — `id` é o `BookingTransferAttempt.id` (chave `TRANSFER#<id>` em `VESSEL#<vesselId>`); `motivo` foi adicionado nesta revisão (faltava — o comprador precisa do motivo real na notificação de transferência, mesma exigência já aplicada ao cancelamento) |
+
+**Consumidos deste módulo, publicados pelo booking (T053-T055 de `tasks-booking.md`) — CONFIRMADOS nesta revisão:**
+
+| Evento | Payload | Observação |
+|---|---|---|
+| `booking.confirmed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla"}` | Já implementado do lado consumidor (T059b/`BookingConfirmedEventPayload`) — este é o contrato final, não mais proposta |
+| `booking.cancelled` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", bookingId: string, transferAttemptId: string\|null}` | `transferAttemptId` vem preenchido só quando o cancelamento é a resolução (recusa/expiração) de uma oferta de `vessel.transfer.viable` — nos demais casos (desistência do comprador, FR-006), vem `null` |
+| `booking.transferred` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", bookingId: string, targetVesselId: string, transferAttemptId: string}` | `vesselId`/`data`/`tipoPasseio` são os da embarcação **original** (a que recebeu `vessel.transfer.viable`); `transferAttemptId` nunca é nulo aqui — todo `booking.transferred` é resposta a uma oferta de transferência, por definição |
+
+**Por que `transferAttemptId` e não correlação por `(vesselId, data, tipoPasseio)`:** essa chave composta não é única ao longo do tempo — uma segunda tentativa de cancelar o mesmo dia/tipo enquanto a primeira ainda está `VIABLE_PENDING` cria um segundo registro `TRANSFER#<id>` para a mesma combinação. Round-tripar o `id` evita essa ambiguidade e permite ao T059 um `GetItem` direto em vez de `Query` + filtro.
+
+**Pendência que este contrato NÃO resolve (fica para quando T059 for implementado):** o efeito exato de `booking.transferred` sobre `DeclaredAvailability`/`SEATLIMIT` — hoje a redação em `tasks-vessel-management.md` (T059) fala em atualizar os dois "da embarcação de destino", mas isso não bate com o que esses dois dados realmente representam (disponibilidade é decisão do proprietário, Princípio I; o limite de vagas nunca é escrito automaticamente por um evento de reserva individual — só o `SEATCOUNT` do próprio booking rastreia vendidas/retidas). A leitura mais provável é que o efeito real seja **finalizar a embarcação de origem** (aplicar `disponivel=false` que ficou pendente durante a janela de 48h) em vez de tocar no destino — mas isso é uma decisão de implementação de T059, não do contrato de evento, e fica para quando essa tarefa for de fato iniciada nos dois módulos.
 
 ---
 
