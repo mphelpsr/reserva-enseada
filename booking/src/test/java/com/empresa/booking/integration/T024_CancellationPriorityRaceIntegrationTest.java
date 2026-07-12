@@ -104,6 +104,18 @@ class T024_CancellationPriorityRaceIntegrationTest extends AbstractDynamoDbInteg
         item.put("tipoPasseio", s(tipoPasseio));
         item.put("status", s("confirmada"));
         item.put("compradaEm", s(Instant.now().toString()));
+        item.put("quantidade", n(1));
         putItem(item);
+
+        // item ponteiro (BookingRepository.findByVesselDateAndType) — sem ele o
+        // consumidor de vessel.transfer.viable nunca encontra esta reserva.
+        Map<String, AttributeValue> pointer = new HashMap<>();
+        pointer.put("PK", s("VESSEL#" + vesselId));
+        pointer.put("SK", s("BOOKING#" + data + "#" + id));
+        pointer.put("vesselId", s(vesselId));
+        pointer.put("data", s(data));
+        pointer.put("bookingId", s(id));
+        pointer.put("tipoPasseio", s(tipoPasseio));
+        putItem(pointer);
     }
 }

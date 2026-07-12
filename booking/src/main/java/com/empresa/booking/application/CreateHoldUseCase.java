@@ -3,6 +3,7 @@ package com.empresa.booking.application;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +52,8 @@ public class CreateHoldUseCase {
             throw new MinimumAdvancePurchaseException(command.vesselId(), command.data().toString());
         }
 
+        reapExpiredHolds(command, agora);
+
         boolean incrementado = seatCountRepository.tryIncrementHeld(
                 command.vesselId(), command.data(), command.tipoPasseio(), command.quantidade());
         if (!incrementado) {
@@ -78,5 +81,19 @@ public class CreateHoldUseCase {
         }
 
         return new CreateHoldResult(holdId, expiresAt, command.vesselId(), command.quantidade());
+    }
+
+    /**
+     * FR-004: hold expirado nunca deve bloquear uma vaga nova, independente
+     * do sweeper (T046, a cada 1 min) já ter passado por ele — sem isto,
+     * `vagasDisponiveis` ficaria presa até o próximo ciclo do sweeper.
+     */
+    private void reapExpiredHolds(CreateHoldCommand command, Instant agora) {
+        List<SeatHold> expirados = seatHoldRepository.findExpiredByVesselDateType(
+                command.vesselId(), command.data(), command.tipoPasseio(), agora);
+        for (SeatHold expirado : expirados) {
+            seatCountRepository.decrementHeld(command.vesselId(), command.data(), command.tipoPasseio(), expirado.getQuantidade());
+            seatHoldRepository.delete(expirado.getId());
+        }
     }
 }

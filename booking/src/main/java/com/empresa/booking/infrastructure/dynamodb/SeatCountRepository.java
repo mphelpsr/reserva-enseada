@@ -20,17 +20,24 @@ import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 
 /**
  * T035. VESSEL#{vesselId}/SEATCOUNT#{data}#{tipoPasseio} — núcleo técnico do
  * FR-003 (overselling). `held`/`sold` são alterados via `UpdateItem` cru com
  * `ConditionExpression` (mesmo padrão de vessel-management SeatLimitRepository/
  * BookingCountRepository) — atômico por natureza de item único, sem precisar
- * de `TransactWriteItems` cross-item: o SDK garante que a condição
- * `limite - sold - held >= :qty` é avaliada e aplicada atomicamente pelo
- * DynamoDB, então duas requisições concorrentes pela última vaga nunca
- * conseguem incrementar `held` além da capacidade — é essa garantia que
- * evita overselling, não uma transação entre itens.
+ * de `TransactWriteItems` cross-item.
+ *
+ * `vagasDisponiveis` é um atributo interno (não faz parte do bean `SeatCount`
+ * — só usado por esta classe) mantido em sincronia com `limite - sold - held`
+ * a cada escrita. Existe porque `ConditionExpression` do DynamoDB não suporta
+ * aritmética entre atributos (só comparações do tipo `atributo OP valor` —
+ * `(limite - sold - held) >= :qty` é sintaxe inválida, descoberto só quando
+ * os controllers da Fase 3.4 passaram a exercitar isto contra DynamoDB de
+ * verdade). `tryIncrementHeld` compara `vagasDisponiveis >= :qty` — comparação
+ * simples, atômica e válida — e é essa garantia que evita overselling, não
+ * uma transação entre itens.
  */
 @Repository
 public class SeatCountRepository {
@@ -80,8 +87,8 @@ public class SeatCountRepository {
             dynamoDbClient.updateItem(builder -> builder
                     .tableName(tableName)
                     .key(key(vesselId, data, tipoPasseio))
-                    .updateExpression("SET held = held + :qty")
-                    .conditionExpression("attribute_exists(PK) AND (limite - sold - held) >= :qty")
+                    .updateExpression("SET held = held + :qty, vagasDisponiveis = vagasDisponiveis - :qty")
+                    .conditionExpression("attribute_exists(PK) AND vagasDisponiveis >= :qty")
                     .expressionAttributeValues(values));
             return true;
         } catch (ConditionalCheckFailedException e) {
@@ -91,10 +98,13 @@ public class SeatCountRepository {
 
     /** Compensação best-effort se a criação do HOLD falhar após incrementar `held`. */
     public void decrementHeld(String vesselId, LocalDate data, TourType tipoPasseio, int quantidade) {
-        addToCounter("held", vesselId, data, tipoPasseio, -quantidade);
+        addToCounterAndAdjustVagas("held", vesselId, data, tipoPasseio, -quantidade);
     }
 
-    /** FR-005: confirmação de pagamento move `held` → `sold` definitivamente. */
+    /**
+     * FR-005: confirmação de pagamento move `held` → `sold` definitivamente —
+     * `vagasDisponiveis` não muda (já foi descontada na criação do hold).
+     */
     public void moveHeldToSold(String vesselId, LocalDate data, TourType tipoPasseio, int quantidade) {
         Map<String, AttributeValue> values = new HashMap<>();
         values.put(":qty", n(quantidade));
@@ -107,23 +117,38 @@ public class SeatCountRepository {
 
     /** FR-006/FR-007/FR-008: cancelamento de reserva confirmada libera a vaga vendida. */
     public void decrementSold(String vesselId, LocalDate data, TourType tipoPasseio, int quantidade) {
-        addToCounter("sold", vesselId, data, tipoPasseio, -quantidade);
+        addToCounterAndAdjustVagas("sold", vesselId, data, tipoPasseio, -quantidade);
     }
 
     /** FR-009 (aceite de transferência): a embarcação de destino ganha a venda que a origem perdeu. */
     public void incrementSold(String vesselId, LocalDate data, TourType tipoPasseio, int quantidade) {
-        addToCounter("sold", vesselId, data, tipoPasseio, quantidade);
+        addToCounterAndAdjustVagas("sold", vesselId, data, tipoPasseio, quantidade);
     }
 
-    /** FR-013, Opção C: sempre aceita, mesmo abaixo do já vendido/retido — sem bloqueio. */
+    /**
+     * FR-013, Opção C: sempre aceita, mesmo abaixo do já vendido/retido — sem
+     * bloqueio. `vagasDisponiveis` é recalculada em Java (não em uma
+     * `UpdateExpression`, para não depender de aritmética encadeada não
+     * documentada como suportada pelo DynamoDB) a partir do `sold`/`held`
+     * atuais — pequena janela de leitura-e-escrita não atômica, aceitável
+     * aqui porque mudança de limite não é um caminho de alta concorrência
+     * (diferente de `tryIncrementHeld`, que segue 100% atômico).
+     */
     public void upsertLimite(String vesselId, LocalDate data, TourType tipoPasseio, int limite) {
+        Map<String, AttributeValue> key = key(vesselId, data, tipoPasseio);
+        GetItemResponse existing = dynamoDbClient.getItem(builder -> builder.tableName(tableName).key(key));
+        int soldAtual = attrAsInt(existing, "sold");
+        int heldAtual = attrAsInt(existing, "held");
+
         Map<String, AttributeValue> values = new HashMap<>();
         values.put(":limite", n(limite));
         values.put(":zero", n(0));
+        values.put(":vagasDisponiveis", n(limite - soldAtual - heldAtual));
         dynamoDbClient.updateItem(builder -> builder
                 .tableName(tableName)
-                .key(key(vesselId, data, tipoPasseio))
-                .updateExpression("SET limite = :limite, sold = if_not_exists(sold, :zero), held = if_not_exists(held, :zero)")
+                .key(key)
+                .updateExpression("SET limite = :limite, sold = if_not_exists(sold, :zero), held = if_not_exists(held, :zero), "
+                        + "vagasDisponiveis = :vagasDisponiveis")
                 .expressionAttributeValues(values));
     }
 
@@ -138,24 +163,34 @@ public class SeatCountRepository {
                 .key(key(vesselId, data, tipoPasseio))
                 .updateExpression(
                         "SET disponivel = :disponivel, motivo = :motivo, "
-                                + "sold = if_not_exists(sold, :zero), held = if_not_exists(held, :zero), limite = if_not_exists(limite, :zero)")
+                                + "sold = if_not_exists(sold, :zero), held = if_not_exists(held, :zero), limite = if_not_exists(limite, :zero), "
+                                + "vagasDisponiveis = if_not_exists(vagasDisponiveis, :zero)")
                 .expressionAttributeValues(values));
     }
 
-    private void addToCounter(String attribute, String vesselId, LocalDate data, TourType tipoPasseio, int delta) {
+    /** `attribute` e `vagasDisponiveis` variam em sentidos opostos: held/sold sobem, vagas descem, e vice-versa. */
+    private void addToCounterAndAdjustVagas(String attribute, String vesselId, LocalDate data, TourType tipoPasseio, int delta) {
         Map<String, AttributeValue> values = new HashMap<>();
         values.put(":delta", n(delta));
+        values.put(":negDelta", n(-delta));
         values.put(":zero", n(0));
         try {
             dynamoDbClient.updateItem(builder -> builder
                     .tableName(tableName)
                     .key(key(vesselId, data, tipoPasseio))
-                    .updateExpression("SET " + attribute + " = if_not_exists(" + attribute + ", :zero) + :delta")
+                    .updateExpression("SET " + attribute + " = if_not_exists(" + attribute + ", :zero) + :delta, "
+                            + "vagasDisponiveis = if_not_exists(vagasDisponiveis, :zero) + :negDelta")
                     .conditionExpression("attribute_exists(PK)")
                     .expressionAttributeValues(values));
         } catch (ConditionalCheckFailedException ignored) {
             // item nunca existiu (ex.: hold de um dia que nunca teve limite definido) — nada a decrementar
         }
+    }
+
+    private static int attrAsInt(GetItemResponse response, String attribute) {
+        return response.item() != null && response.item().containsKey(attribute)
+                ? Integer.parseInt(response.item().get(attribute).n())
+                : 0;
     }
 
     private Map<String, AttributeValue> key(String vesselId, LocalDate data, TourType tipoPasseio) {

@@ -65,6 +65,8 @@ class T014_CancelBookingContractTest extends AbstractDynamoDbIntegrationTest {
         item.put("status", s("confirmada"));
         item.put("compradaEm", s(compradaEm.toString()));
         item.put("data", s(dataPasseio.toString()));
+        item.put("tipoPasseio", s("alto_mar"));
+        item.put("quantidade", n(1));
         putItem(item);
     }
 }

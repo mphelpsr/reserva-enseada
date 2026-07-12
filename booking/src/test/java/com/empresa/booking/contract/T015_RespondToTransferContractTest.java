@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -70,6 +71,9 @@ class T015_RespondToTransferContractTest extends AbstractDynamoDbIntegrationTest
         item.put("buyerId", s("buyer-1"));
         item.put("vesselId", s("vessel-1"));
         item.put("status", s("aguardando_transferencia"));
+        item.put("data", s(LocalDate.now().plusDays(30).toString()));
+        item.put("tipoPasseio", s("alto_mar"));
+        item.put("quantidade", n(1));
         item.put("targetVesselId", s(targetVesselId));
         item.put("transferAttemptId", s("transfer-attempt-1"));
         putItem(item);

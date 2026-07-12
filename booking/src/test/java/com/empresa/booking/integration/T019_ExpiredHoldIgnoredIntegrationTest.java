@@ -109,6 +109,7 @@ class T019_ExpiredHoldIgnoredIntegrationTest extends AbstractDynamoDbIntegration
         item.put("limite", n(limite));
         item.put("sold", n(sold));
         item.put("held", n(held));
+        item.put("vagasDisponiveis", n(limite - sold - held));
         putItem(item);
     }
 

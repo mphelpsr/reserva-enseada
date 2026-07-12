@@ -79,6 +79,7 @@ class T026_PaymentSplitIntegrationTest extends AbstractDynamoDbIntegrationTest {
                                 """)));
 
         seedHold("hold-split-1", "vessel-1", 10000); // R$ 100,00 em centavos
+        seedRecebedor("vessel-1");
 
         var request = new ConfirmBookingRequest("pagarme-tx-split");
 
@@ -100,7 +101,19 @@ class T026_PaymentSplitIntegrationTest extends AbstractDynamoDbIntegrationTest {
         item.put("id", s(holdId));
         item.put("buyerId", s("buyer-1"));
         item.put("vesselId", s(vesselId));
+        item.put("data", s(java.time.LocalDate.now().plusDays(10).toString()));
+        item.put("tipoPasseio", s("alto_mar"));
+        item.put("quantidade", n(1));
         item.put("valorTotalCentavos", n(valorTotalCentavos));
+        putItem(item);
+    }
+
+    private void seedRecebedor(String vesselId) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        item.put("PK", s("VESSEL#" + vesselId));
+        item.put("SK", s("RECEBEDOR"));
+        item.put("vesselId", s(vesselId));
+        item.put("recebedorId", s("rec-1"));
         putItem(item);
     }
 

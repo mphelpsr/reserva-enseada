@@ -114,6 +114,7 @@ class T018_ConcurrentHoldWriteTest extends AbstractDynamoDbIntegrationTest {
         item.put("limite", n(1));
         item.put("sold", n(0));
         item.put("held", n(0));
+        item.put("vagasDisponiveis", n(1));
         putItem(item);
     }
 

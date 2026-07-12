@@ -74,6 +74,7 @@ class T020_MinimumAdvancePurchaseIntegrationTest extends AbstractDynamoDbIntegra
         item.put("limite", n(limite));
         item.put("sold", n(sold));
         item.put("held", n(held));
+        item.put("vagasDisponiveis", n(limite - sold - held));
         putItem(item);
     }
 

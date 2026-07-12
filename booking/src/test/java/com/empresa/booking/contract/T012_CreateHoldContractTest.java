@@ -4,6 +4,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -14,6 +17,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.empresa.booking.support.AbstractDynamoDbIntegrationTest;
+
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 /**
  * Contract test: POST /bookings/hold (FR-003, FR-004).
@@ -34,6 +39,7 @@ class T012_CreateHoldContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Test
     void deveCriarHoldComExpiracaoDeDezMinutos() throws Exception {
+        seedSeatCount("vessel-1", "2026-08-10", "orla", 10, 0, 0);
         var request = new CreateHoldRequest("buyer-1", "vessel-1", "2026-08-10", "orla", 2);
 
         mockMvc.perform(post("/bookings/hold")
@@ -55,6 +61,17 @@ class T012_CreateHoldContractTest extends AbstractDynamoDbIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("INSUFFICIENT_SEATS"));
+    }
+
+    private void seedSeatCount(String vesselId, String data, String tipoPasseio, int limite, int sold, int held) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        item.put("PK", s("VESSEL#" + vesselId));
+        item.put("SK", s("SEATCOUNT#" + data + "#" + tipoPasseio));
+        item.put("limite", n(limite));
+        item.put("sold", n(sold));
+        item.put("held", n(held));
+        item.put("vagasDisponiveis", n(limite - sold - held));
+        putItem(item);
     }
 
     private record CreateHoldRequest(
