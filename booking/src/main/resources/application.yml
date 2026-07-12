@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: booking
+  cloud:
+    function:
+      definition: ${SPRING_CLOUD_FUNCTION_DEFINITION:apiHandler}
+
+app:
+  dynamodb:
+    table-name: ${DYNAMODB_TABLE_NAME:reserva-enseada-booking-dev}
+    # vazio em produção (SDK usa o endpoint real da AWS); testes de integração
+    # sobrescrevem via @DynamicPropertySource para apontar pro DynamoDB Local
+    # do Testcontainers (mesmo padrão de vessel-management).
+    endpoint-override: ${DYNAMODB_ENDPOINT_OVERRIDE:}
+    region: ${AWS_REGION:sa-east-1}
+  sns:
+    region: ${AWS_REGION:sa-east-1}
+    endpoint-override: ${SNS_ENDPOINT_OVERRIDE:}
+    booking-confirmed-topic-arn: ${SNS_BOOKING_CONFIRMED_ARN:}
+    booking-cancelled-topic-arn: ${SNS_BOOKING_CANCELLED_ARN:}
+    booking-transferred-topic-arn: ${SNS_BOOKING_TRANSFERRED_ARN:}
+  payment:
+    # split de pagamento (FR-015) — comissão configurável, nunca hardcoded no
+    # código; vazio em dev/teste local pula a chamada real ao Pagar.me.
+    pagarme-api-key: ${PAGARME_API_KEY:}
+    platform-commission-percentage: ${PLATFORM_COMMISSION_PERCENTAGE:12}
+  hold:
+    # FR-004: janela de retenção de vagas durante checkout.
+    duration-minutes: ${HOLD_DURATION_MINUTES:10}
