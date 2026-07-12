@@ -77,7 +77,9 @@ class T013_ConfirmBookingContractTest extends AbstractDynamoDbIntegrationTest {
                                 {"id":"or_pagarme_t013","status":"paid"}
                                 """)));
 
-        seedHold("hold-1", "vessel-1");
+        LocalDate data = LocalDate.now().plusDays(10);
+        seedHold("hold-1", "vessel-1", data);
+        seedSeatCount("vessel-1", data, "alto_mar", 10, 0, 1);
         seedRecebedor("vessel-1");
 
         var request = new ConfirmBookingRequest("pagarme-tx-123");
@@ -100,18 +102,29 @@ class T013_ConfirmBookingContractTest extends AbstractDynamoDbIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
-    private void seedHold(String holdId, String vesselId) {
+    private void seedHold(String holdId, String vesselId, LocalDate data) {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("PK", s("HOLD#" + holdId));
         item.put("SK", s("METADATA"));
         item.put("id", s(holdId));
         item.put("buyerId", s("buyer-1"));
         item.put("vesselId", s(vesselId));
-        item.put("data", s(LocalDate.now().plusDays(10).toString()));
+        item.put("data", s(data.toString()));
         item.put("tipoPasseio", s("alto_mar"));
         item.put("quantidade", n(1));
         item.put("expiresAt", s(Instant.now().plus(5, ChronoUnit.MINUTES).toString()));
         item.put("valorTotalCentavos", n(15000));
+        putItem(item);
+    }
+
+    private void seedSeatCount(String vesselId, LocalDate data, String tipoPasseio, int limite, int sold, int held) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        item.put("PK", s("VESSEL#" + vesselId));
+        item.put("SK", s("SEATCOUNT#" + data + "#" + tipoPasseio));
+        item.put("limite", n(limite));
+        item.put("sold", n(sold));
+        item.put("held", n(held));
+        item.put("vagasDisponiveis", n(limite - sold - held));
         putItem(item);
     }
 

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -78,7 +79,9 @@ class T026_PaymentSplitIntegrationTest extends AbstractDynamoDbIntegrationTest {
                                 {"id":"or_pagarme_123","status":"paid"}
                                 """)));
 
-        seedHold("hold-split-1", "vessel-1", 10000); // R$ 100,00 em centavos
+        LocalDate data = LocalDate.now().plusDays(10);
+        seedHold("hold-split-1", "vessel-1", data, 10000); // R$ 100,00 em centavos
+        seedSeatCount("vessel-1", data, "alto_mar", 10, 0, 1);
         seedRecebedor("vessel-1");
 
         var request = new ConfirmBookingRequest("pagarme-tx-split");
@@ -94,17 +97,28 @@ class T026_PaymentSplitIntegrationTest extends AbstractDynamoDbIntegrationTest {
         pagarmeStub.verify(1, postRequestedFor(urlPathMatching("/core/v5/orders.*")));
     }
 
-    private void seedHold(String holdId, String vesselId, int valorTotalCentavos) {
+    private void seedHold(String holdId, String vesselId, LocalDate data, int valorTotalCentavos) {
         Map<String, AttributeValue> item = new HashMap<>();
         item.put("PK", s("HOLD#" + holdId));
         item.put("SK", s("METADATA"));
         item.put("id", s(holdId));
         item.put("buyerId", s("buyer-1"));
         item.put("vesselId", s(vesselId));
-        item.put("data", s(java.time.LocalDate.now().plusDays(10).toString()));
+        item.put("data", s(data.toString()));
         item.put("tipoPasseio", s("alto_mar"));
         item.put("quantidade", n(1));
         item.put("valorTotalCentavos", n(valorTotalCentavos));
+        putItem(item);
+    }
+
+    private void seedSeatCount(String vesselId, LocalDate data, String tipoPasseio, int limite, int sold, int held) {
+        Map<String, AttributeValue> item = new HashMap<>();
+        item.put("PK", s("VESSEL#" + vesselId));
+        item.put("SK", s("SEATCOUNT#" + data + "#" + tipoPasseio));
+        item.put("limite", n(limite));
+        item.put("sold", n(sold));
+        item.put("held", n(held));
+        item.put("vagasDisponiveis", n(limite - sold - held));
         putItem(item);
     }
 
