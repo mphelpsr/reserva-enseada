@@ -133,6 +133,33 @@ Esses tópicos ficam disponíveis para módulos futuros (ex.: relatórios, CRM) 
 
 ---
 
+## Contrato da Saga — revisão de 2026-07-12 (antes da Fase 3.1)
+
+Revisão feita em conjunto com `plan-vessel-management.md` ("Contrato da Saga"), antes de iniciar a implementação deste módulo — os dois lados nascem alinhados em vez de descobrirem divergência só na Fase 3.4. Payload exato de cada evento, nos dois sentidos.
+
+**Envelope de transporte (ambos os sentidos):** SNS → SQS sem raw message delivery — o corpo de cada mensagem SQS é o envelope de notificação do SNS, com o payload de negócio como string JSON dentro do campo `Message`; roteamento pelo atributo de mensagem `event-type`. Datas trafegam como string ISO-8601 (`yyyy-MM-dd`) no fio, independente do tipo Java usado em cada lado.
+
+**Consumidos deste módulo, publicados pelo vessel-management (já implementados do lado publisher — `SnsEventListener`, T052-T055 de `tasks-vessel-management.md`):**
+
+| Evento | Payload (nomes de campo exatos) |
+|---|---|
+| `vessel.availability.changed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", disponivel: boolean, motivo: string\|null}` |
+| `vessel.seatlimit.changed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", limite: int}` |
+| `vessel.cancellation.operator-initiated` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", motivo: string}` |
+| `vessel.transfer.viable` | `{id: string, vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", targetVesselId: string, motivo: string}` — `id` identifica a tentativa de transferência do lado vessel-management; **guardar esse valor** (ex.: no próprio `BookingTransferAttempt`/registro local que T052 for criar) para ecoá-lo de volta em `booking.transferred`/`booking.cancelled` como `transferAttemptId` |
+
+**Publicados por este módulo (T053-T055) — CONFIRMADOS nesta revisão, não mais proposta:**
+
+| Evento | Payload | Observação |
+|---|---|---|
+| `booking.confirmed` (T053) | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla"}` | O vessel-management já consome este contrato (T059b, implementado) — publicar exatamente estes 3 campos, sem envelope adicional |
+| `booking.cancelled` (T054) | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", bookingId: string, transferAttemptId: string\|null}` | `transferAttemptId` = o `id` recebido em `vessel.transfer.viable`, só quando este cancelamento é a resolução (recusa explícita ou expiração das 48h) de uma oferta de transferência; em desistência direta do comprador (FR-006, sem transferência envolvida), enviar `null` |
+| `booking.transferred` (T055) | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", bookingId: string, targetVesselId: string, transferAttemptId: string}` | `vesselId`/`data`/`tipoPasseio` são os da embarcação **original** (a que recebeu `vessel.transfer.viable`), não os do destino; `transferAttemptId` nunca é `null` aqui |
+
+**Por que `transferAttemptId` é obrigatório para correlacionar, em vez de (vesselId, data, tipoPasseio):** essa chave composta pode não ser única no vessel-management ao longo do tempo (duas tentativas de transferência podem existir para o mesmo dia/tipo em momentos diferentes). Sempre que o booking responder a uma oferta de `vessel.transfer.viable` (aceitando ou recusando), ecoar o `id` recebido naquele evento evita essa ambiguidade do lado de quem consome.
+
+---
+
 ## Fora de escopo deste plano
 
 - Cálculo de disponibilidade final e regras de rodízio/maré (spec-vessel-management, já implementado naquele módulo).

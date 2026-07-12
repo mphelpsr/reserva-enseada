@@ -81,7 +81,8 @@ public class CancelDayWithBookingsUseCase {
         transferAttemptRepository.save(attempt);
 
         if (alternative.isPresent()) {
-            eventPublisher.publishEvent(new TransferViableEvent(vesselId, data, tipoPasseio, alternative.get().getId()));
+            eventPublisher.publishEvent(
+                    new TransferViableEvent(attempt.getId(), vesselId, data, tipoPasseio, alternative.get().getId(), motivo));
         } else {
             availabilityRepository.save(DeclaredAvailability.builder()
                     .vesselId(vesselId)
