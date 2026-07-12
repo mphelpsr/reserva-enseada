@@ -168,6 +168,8 @@ Revisão feita em conjunto com `plan-vessel-management.md` ("Contrato da Saga"),
 
 Ambas as pendências cross-módulo identificadas anteriormente (`payment_recebedor_id` no vessel-management e percentual de comissão) foram resolvidas — ver `spec-vessel-management.md` (FR-016) e `spec-booking.md` (FR-015).
 
+**Nota de 2026-07-12 — revisão de modelo planejada, ainda NÃO implementada:** decidido que o proprietário não deve ter subconta própria no Pagar.me — a plataforma pretende receber numa conta única (CNPJ próprio) e repassar por fora do gateway. O split automático descrito acima (FR-015, `PagarmeClient`) continua sendo o comportamento ATUAL e implementado; o novo modelo de repasse ainda não foi desenhado, então nada neste plano foi alterado. Ver a mesma nota em `spec.md` (FR-015) e em `spec-vessel-management.md`/`plan-vessel-management.md` (FR-016, T059c adiada).
+
 ---
 
 ## Próximo passo
