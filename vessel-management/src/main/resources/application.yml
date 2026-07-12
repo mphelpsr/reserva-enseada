@@ -8,3 +8,8 @@ spring:
 app:
   dynamodb:
     table-name: ${DYNAMODB_TABLE_NAME:reserva-enseada-vessel-management-dev}
+    # vazio em produção (SDK usa o endpoint real da AWS); testes de integração
+    # (AbstractDynamoDbIntegrationTest) sobrescrevem via @DynamicPropertySource
+    # para apontar pro DynamoDB Local do Testcontainers.
+    endpoint-override: ${DYNAMODB_ENDPOINT_OVERRIDE:}
+    region: ${AWS_REGION:sa-east-1}

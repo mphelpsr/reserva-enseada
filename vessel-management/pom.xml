@@ -77,6 +77,12 @@
       <version>3.13.0</version>
     </dependency>
 
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+
     <!-- AWS SDK v2 Enhanced Client (DynamoDB) + SNS/SQS -->
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
