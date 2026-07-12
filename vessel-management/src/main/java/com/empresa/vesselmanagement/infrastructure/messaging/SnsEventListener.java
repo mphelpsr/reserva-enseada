@@ -10,6 +10,7 @@ import com.empresa.vesselmanagement.application.event.AvailabilityChangedEvent;
 import com.empresa.vesselmanagement.application.event.CancellationInitiatedEvent;
 import com.empresa.vesselmanagement.application.event.SeatLimitChangedEvent;
 import com.empresa.vesselmanagement.application.event.TransferViableEvent;
+import com.empresa.vesselmanagement.application.event.VesselRecebedorChangedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import software.amazon.awssdk.services.sns.SnsClient;
@@ -35,6 +36,7 @@ public class SnsEventListener {
     private final String seatLimitChangedTopicArn;
     private final String cancellationOperatorInitiatedTopicArn;
     private final String transferViableTopicArn;
+    private final String recebedorChangedTopicArn;
 
     public SnsEventListener(
             SnsClient snsClient,
@@ -42,13 +44,15 @@ public class SnsEventListener {
             @Value("${app.sns.vessel-availability-changed-topic-arn:}") String availabilityChangedTopicArn,
             @Value("${app.sns.vessel-seatlimit-changed-topic-arn:}") String seatLimitChangedTopicArn,
             @Value("${app.sns.vessel-cancellation-operator-initiated-topic-arn:}") String cancellationOperatorInitiatedTopicArn,
-            @Value("${app.sns.vessel-transfer-viable-topic-arn:}") String transferViableTopicArn) {
+            @Value("${app.sns.vessel-transfer-viable-topic-arn:}") String transferViableTopicArn,
+            @Value("${app.sns.vessel-recebedor-changed-topic-arn:}") String recebedorChangedTopicArn) {
         this.snsClient = snsClient;
         this.objectMapper = objectMapper;
         this.availabilityChangedTopicArn = availabilityChangedTopicArn;
         this.seatLimitChangedTopicArn = seatLimitChangedTopicArn;
         this.cancellationOperatorInitiatedTopicArn = cancellationOperatorInitiatedTopicArn;
         this.transferViableTopicArn = transferViableTopicArn;
+        this.recebedorChangedTopicArn = recebedorChangedTopicArn;
     }
 
     @EventListener
@@ -69,6 +73,11 @@ public class SnsEventListener {
     @EventListener
     public void onTransferViable(TransferViableEvent event) {
         publish(transferViableTopicArn, "vessel.transfer.viable", event);
+    }
+
+    @EventListener
+    public void onRecebedorChanged(VesselRecebedorChangedEvent event) {
+        publish(recebedorChangedTopicArn, "vessel.recebedor.changed", event);
     }
 
     private void publish(String topicArn, String eventType, Object payload) {

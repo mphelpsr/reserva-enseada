@@ -76,6 +76,7 @@ resource "aws_iam_role_policy" "api_lambda_sns" {
         aws_sns_topic.vessel_seatlimit_changed.arn,
         aws_sns_topic.vessel_cancellation_operator_initiated.arn,
         aws_sns_topic.vessel_transfer_viable.arn,
+        aws_sns_topic.vessel_recebedor_changed.arn,
       ]
     }]
   })
@@ -108,6 +109,7 @@ resource "aws_lambda_function" "api" {
       SNS_VESSEL_SEATLIMIT_CHANGED_ARN               = aws_sns_topic.vessel_seatlimit_changed.arn
       SNS_VESSEL_CANCELLATION_OPERATOR_INITIATED_ARN = aws_sns_topic.vessel_cancellation_operator_initiated.arn
       SNS_VESSEL_TRANSFER_VIABLE_ARN                 = aws_sns_topic.vessel_transfer_viable.arn
+      SNS_VESSEL_RECEBEDOR_CHANGED_ARN               = aws_sns_topic.vessel_recebedor_changed.arn
     }
   }
 

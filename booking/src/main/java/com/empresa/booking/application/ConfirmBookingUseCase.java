@@ -72,7 +72,7 @@ public class ConfirmBookingUseCase {
         long valorLiquido = valorTotal - valorComissao;
 
         PagarmeOrderResult pagamento = pagarmeClient.createOrderWithSplit(
-                command.paymentReference(), recebedor.getRecebedorId(), valorTotal, valorComissao, valorLiquido);
+                command.paymentReference(), recebedor.getPixKey(), valorTotal, valorComissao, valorLiquido);
 
         if (!"paid".equals(pagamento.status())) {
             throw new PaymentFailedException("Pagar.me retornou status " + pagamento.status() + " para o pedido " + pagamento.orderId());

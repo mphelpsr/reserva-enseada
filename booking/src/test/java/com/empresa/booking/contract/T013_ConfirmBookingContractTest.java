@@ -133,7 +133,7 @@ class T013_ConfirmBookingContractTest extends AbstractDynamoDbIntegrationTest {
         item.put("PK", s("VESSEL#" + vesselId));
         item.put("SK", s("RECEBEDOR"));
         item.put("vesselId", s(vesselId));
-        item.put("recebedorId", s("rec-1"));
+        item.put("pixKey", s("rec-1"));
         putItem(item);
     }
 

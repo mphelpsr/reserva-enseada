@@ -10,6 +10,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import com.empresa.vesselmanagement.application.exception.AdvisoryNotFoundException;
 import com.empresa.vesselmanagement.application.exception.IncompatibleTargetVesselException;
+import com.empresa.vesselmanagement.application.exception.InvalidPaymentPixKeyException;
 import com.empresa.vesselmanagement.application.exception.InvalidVesselDataException;
 import com.empresa.vesselmanagement.application.exception.PaymentRecebedorIdMissingException;
 import com.empresa.vesselmanagement.application.exception.RotationAvailabilityConflictException;
@@ -28,7 +29,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({InvalidVesselDataException.class, SeatLimitExceedsCapacityException.class,
-            MethodArgumentTypeMismatchException.class})
+            InvalidPaymentPixKeyException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception e) {
         return ResponseEntity.badRequest().body(new ErrorResponse("INVALID_REQUEST", e.getMessage()));
     }
