@@ -71,7 +71,7 @@ class T019_ExpiredHoldIgnoredIntegrationTest extends AbstractDynamoDbIntegration
     @Test
     @SuppressWarnings("unchecked")
     void sweeperDeveDecrementarHeldERemoverHoldExpiradoEmAteUmMinuto() {
-        seedSeatCount(5, 0, 5);
+        seedSeatCount(1, 0, 1);
         seedExpiredHold("hold-para-varrer", Instant.now().minus(15, ChronoUnit.MINUTES));
 
         Object bean = applicationContext.containsBean("releaseExpiredHoldsJob")
