@@ -27,3 +27,10 @@ variable "lambda_artifact_path" {
   type        = string
   default     = "../target/vessel-management-aws.jar"
 }
+
+variable "stormglass_api_key" {
+  description = "API key da Stormglass (T056) — vazio faz o advisory job pular o cálculo sem erro (Princípio I: advisory nunca bloqueia)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

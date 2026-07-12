@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -20,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+import com.empresa.vesselmanagement.domain.vessel.VesselStatus;
 import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,6 +52,21 @@ class T022_ConcurrentAvailabilityWriteTest extends AbstractDynamoDbIntegrationTe
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void seedVesselFixture() {
+        seedVessel(Vessel.builder()
+                .id(VESSEL_ID)
+                .ownerId("owner-t022")
+                .nomeLegal("Nome Legal")
+                .nomeFantasia("Fantasia")
+                .numeroRegistroCapitania("CP-T022")
+                .cpfCnpjProprietario("000.000.000-00")
+                .capacidadeMaxima(20)
+                .portoSaida("Porto Teste")
+                .status(VesselStatus.PENDENTE_CONFIGURACAO)
+                .build());
+    }
 
     @Test
     void duasEscritasSimultaneasNaoDevemCorromperOEstadoFinal() throws Exception {

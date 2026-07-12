@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.vesselmanagement.application.exception.SeatLimitExceedsCapacityException;
 import com.empresa.vesselmanagement.application.exception.VesselNotFoundException;
@@ -32,6 +33,9 @@ class SetSeatLimitUseCaseTest {
     @Mock
     private SeatLimitRepository seatLimitRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final Vessel vessel = Vessel.builder()
             .id("vessel-1").ownerId("owner-1").nomeLegal("Nome").capacidadeMaxima(20)
             .portoSaida("Porto A").status(VesselStatus.ATIVA).build();
@@ -43,7 +47,7 @@ class SetSeatLimitUseCaseTest {
                 .thenReturn(DefaultSeatUsageCounter.builder().vesselId("vessel-1").vezesAplicado(0).build());
         when(seatLimitRepository.incrementCounter("vessel-1")).thenReturn(1);
 
-        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository);
+        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository, eventPublisher);
         SetSeatLimitResult result = useCase.setSeatLimit("vessel-1", LocalDate.of(2026, 11, 1), TourType.ALTO_MAR, null);
 
         assertThat(result.seatLimit().getLimite()).isEqualTo(2); // 10% de 20
@@ -57,7 +61,7 @@ class SetSeatLimitUseCaseTest {
         when(seatLimitRepository.getCounter("vessel-1"))
                 .thenReturn(DefaultSeatUsageCounter.builder().vesselId("vessel-1").vezesAplicado(2).build());
 
-        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository);
+        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository, eventPublisher);
         SetSeatLimitResult result = useCase.setSeatLimit("vessel-1", LocalDate.of(2026, 11, 3), TourType.ALTO_MAR, null);
 
         assertThat(result.seatLimit().getLimite()).isZero();
@@ -71,7 +75,7 @@ class SetSeatLimitUseCaseTest {
         when(seatLimitRepository.getCounter("vessel-1"))
                 .thenReturn(DefaultSeatUsageCounter.builder().vesselId("vessel-1").vezesAplicado(0).build());
 
-        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository);
+        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository, eventPublisher);
         SetSeatLimitResult result = useCase.setSeatLimit("vessel-1", LocalDate.of(2026, 11, 1), TourType.ALTO_MAR, 7);
 
         assertThat(result.seatLimit().getLimite()).isEqualTo(7);
@@ -82,7 +86,7 @@ class SetSeatLimitUseCaseTest {
     void deveRecusarLimiteAcimaDaCapacidadeMaxima() {
         when(vesselRepository.findById("vessel-1")).thenReturn(Optional.of(vessel));
 
-        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository);
+        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository, eventPublisher);
 
         assertThatThrownBy(() -> useCase.setSeatLimit("vessel-1", LocalDate.of(2026, 11, 1), TourType.ALTO_MAR, 999))
                 .isInstanceOf(SeatLimitExceedsCapacityException.class);
@@ -92,7 +96,7 @@ class SetSeatLimitUseCaseTest {
     void deveLancarNotFoundParaEmbarcacaoInexistente() {
         when(vesselRepository.findById("inexistente")).thenReturn(Optional.empty());
 
-        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository);
+        SetSeatLimitUseCase useCase = new SetSeatLimitUseCase(vesselRepository, seatLimitRepository, eventPublisher);
 
         assertThatThrownBy(() -> useCase.setSeatLimit("inexistente", LocalDate.of(2026, 11, 1), TourType.ALTO_MAR, 5))
                 .isInstanceOf(VesselNotFoundException.class);

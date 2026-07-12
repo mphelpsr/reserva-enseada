@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -12,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+import com.empresa.vesselmanagement.domain.vessel.VesselStatus;
 import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -36,6 +39,21 @@ class T017_RotationAvailabilityConflictIntegrationTest extends AbstractDynamoDbI
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void seedVesselFixture() {
+        seedVessel(Vessel.builder()
+                .id(VESSEL_ID)
+                .ownerId("owner-t017")
+                .nomeLegal("Nome Legal")
+                .nomeFantasia("Fantasia")
+                .numeroRegistroCapitania("CP-T017")
+                .cpfCnpjProprietario("000.000.000-00")
+                .capacidadeMaxima(20)
+                .portoSaida("Porto Teste")
+                .status(VesselStatus.PENDENTE_CONFIGURACAO)
+                .build());
+    }
 
     @Test
     void rodizioDevePrevalecerSobreTentativaDeMarcarAltoMarDisponivel() throws Exception {

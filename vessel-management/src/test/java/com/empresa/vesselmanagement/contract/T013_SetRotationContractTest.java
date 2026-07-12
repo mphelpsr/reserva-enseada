@@ -4,6 +4,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -12,6 +15,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
+import com.empresa.vesselmanagement.domain.availability.TourType;
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+import com.empresa.vesselmanagement.domain.vessel.VesselStatus;
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 
 /**
  * Contract test: PUT /vessels/{id}/rotation/{data} (FR-013, FR-014), incluindo a
@@ -26,13 +35,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T013_SetRotationContractTest {
+class T013_SetRotationContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void seedVesselFixture() {
+        seedVessel(Vessel.builder()
+                .id("vessel-1")
+                .ownerId("owner-t013")
+                .nomeLegal("Nome Legal")
+                .nomeFantasia("Fantasia")
+                .numeroRegistroCapitania("CP-T013")
+                .cpfCnpjProprietario("000.000.000-00")
+                .capacidadeMaxima(20)
+                .portoSaida("Porto Teste")
+                .status(VesselStatus.PENDENTE_CONFIGURACAO)
+                .build());
+    }
 
     @Test
     void deveCadastrarRodizioParaDiaSemConflito() throws Exception {
@@ -53,6 +77,13 @@ class T013_SetRotationContractTest {
         // teste de contrato — asserção de fluxo completo fica em T017); aqui validamos
         // apenas o FORMATO da resposta de conflito, usando uma data convencionada nos
         // fixtures de teste como "já tem Alto Mar disponível".
+        seedAvailability(DeclaredAvailability.builder()
+                .vesselId("vessel-1")
+                .data(LocalDate.parse("2026-09-02"))
+                .tipoPasseio(TourType.ALTO_MAR)
+                .disponivel(true)
+                .build());
+
         var request = new SetRotationRequest(true);
 
         mockMvc.perform(put("/vessels/vessel-1/rotation/2026-09-02")

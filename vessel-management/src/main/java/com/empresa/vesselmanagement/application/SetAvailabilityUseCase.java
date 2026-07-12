@@ -2,8 +2,10 @@ package com.empresa.vesselmanagement.application;
 
 import java.time.LocalDate;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import com.empresa.vesselmanagement.application.event.AvailabilityChangedEvent;
 import com.empresa.vesselmanagement.application.exception.RotationAvailabilityConflictException;
 import com.empresa.vesselmanagement.application.exception.VesselNotFoundException;
 import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
@@ -47,6 +49,7 @@ public class SetAvailabilityUseCase {
     private final BookingCountRepository bookingCountRepository;
     private final CancelDayWithBookingsUseCase cancelDayWithBookingsUseCase;
     private final DynamoDbEnhancedClient enhancedClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     public SetAvailabilityUseCase(
             VesselRepository vesselRepository,
@@ -54,13 +57,15 @@ public class SetAvailabilityUseCase {
             RotationScheduleRepository rotationScheduleRepository,
             BookingCountRepository bookingCountRepository,
             CancelDayWithBookingsUseCase cancelDayWithBookingsUseCase,
-            DynamoDbEnhancedClient enhancedClient) {
+            DynamoDbEnhancedClient enhancedClient,
+            ApplicationEventPublisher eventPublisher) {
         this.vesselRepository = vesselRepository;
         this.availabilityRepository = availabilityRepository;
         this.rotationScheduleRepository = rotationScheduleRepository;
         this.bookingCountRepository = bookingCountRepository;
         this.cancelDayWithBookingsUseCase = cancelDayWithBookingsUseCase;
         this.enhancedClient = enhancedClient;
+        this.eventPublisher = eventPublisher;
     }
 
     public SetAvailabilityResult setAvailability(
@@ -96,6 +101,7 @@ public class SetAvailabilityUseCase {
             availabilityRepository.save(availability);
         }
 
+        eventPublisher.publishEvent(new AvailabilityChangedEvent(vesselId, data, tipoPasseio, disponivel, motivo));
         return new SetAvailabilityResult.Applied(availability);
     }
 

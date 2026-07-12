@@ -2,8 +2,10 @@ package com.empresa.vesselmanagement.application;
 
 import java.time.LocalDate;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import com.empresa.vesselmanagement.application.event.SeatLimitChangedEvent;
 import com.empresa.vesselmanagement.application.exception.SeatLimitExceedsCapacityException;
 import com.empresa.vesselmanagement.application.exception.VesselNotFoundException;
 import com.empresa.vesselmanagement.domain.availability.TourType;
@@ -26,10 +28,13 @@ public class SetSeatLimitUseCase {
 
     private final VesselRepository vesselRepository;
     private final SeatLimitRepository seatLimitRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public SetSeatLimitUseCase(VesselRepository vesselRepository, SeatLimitRepository seatLimitRepository) {
+    public SetSeatLimitUseCase(
+            VesselRepository vesselRepository, SeatLimitRepository seatLimitRepository, ApplicationEventPublisher eventPublisher) {
         this.vesselRepository = vesselRepository;
         this.seatLimitRepository = seatLimitRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public SetSeatLimitResult setSeatLimit(String vesselId, LocalDate data, TourType tipoPasseio, Integer limiteExplicito) {
@@ -68,6 +73,7 @@ public class SetSeatLimitUseCase {
                 .build();
 
         seatLimitRepository.save(seatLimit);
+        eventPublisher.publishEvent(new SeatLimitChangedEvent(vesselId, data, tipoPasseio, limite));
 
         return new SetSeatLimitResult(seatLimit, vezesPadraoAplicado);
     }

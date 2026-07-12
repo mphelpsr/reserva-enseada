@@ -1,6 +1,7 @@
 package com.empresa.vesselmanagement.support;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.Map;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -8,8 +9,16 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.empresa.vesselmanagement.domain.advisory.WeatherTideAdvisory;
+import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
+import com.empresa.vesselmanagement.domain.availability.TourType;
+import com.empresa.vesselmanagement.domain.bookingcount.ConfirmedBookingCount;
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
@@ -45,7 +54,15 @@ public abstract class AbstractDynamoDbIntegrationTest {
 
     static {
         DYNAMODB_LOCAL = new GenericContainer<>(DockerImageName.parse("amazon/dynamodb-local:2.5.2"))
-                .withExposedPorts(8000);
+                .withExposedPorts(8000)
+                // -sharedDb: sem essa flag, o DynamoDB Local isola os dados por combinação
+                // de region+accessKeyId — o client daqui (região/credenciais de teste) e o
+                // client da aplicação (região/credenciais de produção, resolvidos via
+                // application.yml) acabam em bancos diferentes dentro do mesmo container,
+                // e a app recebe ResourceNotFoundException para uma tabela que "existe" do
+                // ponto de vista deste client. Com -sharedDb, um único banco é usado
+                // independente de region/credenciais.
+                .withCommand("-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb");
         DYNAMODB_LOCAL.start();
 
         DYNAMO_DB_CLIENT = DynamoDbClient.builder()
@@ -74,6 +91,19 @@ public abstract class AbstractDynamoDbIntegrationTest {
                         .build()));
     }
 
+    /**
+     * Client "bean-aware" (mesmos conversores/derivação de PK/SK que a aplicação usa
+     * via TableSchema.fromBean) para semear fixtures nos testes de contrato/integração
+     * que referenciam uma embarcação/dado por ID fixo em vez de criá-lo via API real
+     * (ex.: "vessel-1") — ver seedVessel/seedAvailability/seedAdvisory/seedConfirmedBookingCount.
+     * Semear via AttributeValue cru (como fazia o antigo putItem(Map) para alguns
+     * desses tipos) é frágil: fica fácil esquecer um atributo que o bean espera em
+     * leitura (foi exatamente o bug do seedConfirmedBookingCount duplicado em T020/T021,
+     * que só gravava PK/SK/count e deixava `data`/`tipoPasseio`/`vesselId` nulos).
+     */
+    private static final DynamoDbEnhancedClient ENHANCED_CLIENT =
+            DynamoDbEnhancedClient.builder().dynamoDbClient(DYNAMO_DB_CLIENT).build();
+
     @DynamicPropertySource
     static void dynamoDbProperties(DynamicPropertyRegistry registry) {
         // Lidas pelo bean de DynamoDbClient da aplicação a partir da Fase 3.3 (T032).
@@ -85,6 +115,28 @@ public abstract class AbstractDynamoDbIntegrationTest {
     /** Semeia um item diretamente na tabela, contornando a (ainda inexistente) camada de aplicação. */
     protected static void putItem(Map<String, AttributeValue> item) {
         DYNAMO_DB_CLIENT.putItem(builder -> builder.tableName(TABLE_NAME).item(item));
+    }
+
+    protected static void seedVessel(Vessel vessel) {
+        ENHANCED_CLIENT.table(TABLE_NAME, TableSchema.fromBean(Vessel.class)).putItem(vessel);
+    }
+
+    protected static void seedAvailability(DeclaredAvailability availability) {
+        ENHANCED_CLIENT.table(TABLE_NAME, TableSchema.fromBean(DeclaredAvailability.class)).putItem(availability);
+    }
+
+    protected static void seedAdvisory(WeatherTideAdvisory advisory) {
+        ENHANCED_CLIENT.table(TABLE_NAME, TableSchema.fromBean(WeatherTideAdvisory.class)).putItem(advisory);
+    }
+
+    protected static void seedConfirmedBookingCount(String vesselId, LocalDate data, TourType tipoPasseio, int count) {
+        ENHANCED_CLIENT.table(TABLE_NAME, TableSchema.fromBean(ConfirmedBookingCount.class))
+                .putItem(ConfirmedBookingCount.builder()
+                        .vesselId(vesselId)
+                        .data(data)
+                        .tipoPasseio(tipoPasseio)
+                        .count(count)
+                        .build());
     }
 
     protected static AttributeValue s(String value) {

@@ -5,8 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +14,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.empresa.vesselmanagement.domain.availability.TourType;
 import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 /**
  * Integration test: remoção de embarcação com reservas futuras exige transferência
@@ -56,7 +54,7 @@ class T020_RemoveVesselRequiresTransferIntegrationTest extends AbstractDynamoDbI
         String targetVesselId = registerVessel(ownerId, "Frota Compatível");
 
         // reserva confirmada futura, replicada via booking.confirmed (T059b, fora de escopo aqui)
-        seedConfirmedBookingCount(vesselId, "2026-12-20", "alto_mar", 1);
+        seedConfirmedBookingCount(vesselId, LocalDate.parse("2026-12-20"), TourType.ALTO_MAR, 1);
 
         // remoção direta é recusada — precisa transferir antes (FR-002)
         mockMvc.perform(delete("/vessels/" + vesselId))
@@ -85,14 +83,6 @@ class T020_RemoveVesselRequiresTransferIntegrationTest extends AbstractDynamoDbI
                 .getContentAsString();
 
         return objectMapper.readTree(responseBody).get("id").asText();
-    }
-
-    private void seedConfirmedBookingCount(String vesselId, String data, String tipoPasseio, int count) {
-        Map<String, AttributeValue> item = new HashMap<>();
-        item.put("PK", s("VESSEL#" + vesselId));
-        item.put("SK", s("BOOKINGCOUNT#" + data + "#" + tipoPasseio));
-        item.put("count", n(count));
-        putItem(item);
     }
 
     private record RegisterVesselRequest(

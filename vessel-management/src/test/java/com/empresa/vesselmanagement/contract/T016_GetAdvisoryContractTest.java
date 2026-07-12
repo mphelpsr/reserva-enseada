@@ -4,11 +4,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.empresa.vesselmanagement.domain.advisory.AdvisoryCondition;
+import com.empresa.vesselmanagement.domain.advisory.WeatherTideAdvisory;
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+import com.empresa.vesselmanagement.domain.vessel.VesselStatus;
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 
 /**
  * Contract test: GET /vessels/{id}/advisory/{data} (FR-006, FR-008).
@@ -19,13 +28,35 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T016_GetAdvisoryContractTest {
+class T016_GetAdvisoryContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
+    @BeforeEach
+    void seedVesselFixture() {
+        seedVessel(Vessel.builder()
+                .id("vessel-1")
+                .ownerId("owner-t016")
+                .nomeLegal("Nome Legal")
+                .nomeFantasia("Fantasia")
+                .numeroRegistroCapitania("CP-T016")
+                .cpfCnpjProprietario("000.000.000-00")
+                .capacidadeMaxima(20)
+                .portoSaida("Porto Teste")
+                .status(VesselStatus.PENDENTE_CONFIGURACAO)
+                .build());
+    }
+
     @Test
     void deveRetornarIndicadorDeMareEPrevisaoDoDia() throws Exception {
+        seedAdvisory(WeatherTideAdvisory.builder()
+                .vesselId("vessel-1")
+                .data(LocalDate.parse("2026-08-10"))
+                .condicao(AdvisoryCondition.FAVORAVEL)
+                .detalhes("mar calmo, vento fraco")
+                .build());
+
         mockMvc.perform(get("/vessels/vessel-1/advisory/2026-08-10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vesselId").value("vessel-1"))

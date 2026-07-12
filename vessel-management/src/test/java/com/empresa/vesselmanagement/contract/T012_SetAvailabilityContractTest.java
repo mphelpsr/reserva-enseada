@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -12,6 +13,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+import com.empresa.vesselmanagement.domain.vessel.VesselStatus;
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 
 /**
  * Contract test: PUT /vessels/{id}/availability/{data}/{tipoPasseio} (FR-003, FR-004).
@@ -23,13 +28,28 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T012_SetAvailabilityContractTest {
+class T012_SetAvailabilityContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void seedVesselFixture() {
+        seedVessel(Vessel.builder()
+                .id("vessel-1")
+                .ownerId("owner-t012")
+                .nomeLegal("Nome Legal")
+                .nomeFantasia("Fantasia")
+                .numeroRegistroCapitania("CP-T012")
+                .cpfCnpjProprietario("000.000.000-00")
+                .capacidadeMaxima(20)
+                .portoSaida("Porto Teste")
+                .status(VesselStatus.PENDENTE_CONFIGURACAO)
+                .build());
+    }
 
     @Test
     void deveMarcarDiaComoDisponivel() throws Exception {

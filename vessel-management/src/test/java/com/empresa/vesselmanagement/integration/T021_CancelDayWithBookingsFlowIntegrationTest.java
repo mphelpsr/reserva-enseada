@@ -6,8 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +15,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.empresa.vesselmanagement.domain.availability.TourType;
 import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 /**
  * Integration test: fluxo de cancelamento de dia com reserva confirmada — tenta
@@ -53,7 +51,15 @@ class T021_CancelDayWithBookingsFlowIntegrationTest extends AbstractDynamoDbInte
         String data = "2026-12-24";
         String tipoPasseio = "alto_mar";
 
-        seedConfirmedBookingCount(vesselA, data, tipoPasseio, 3);
+        seedConfirmedBookingCount(vesselA, LocalDate.parse(data), TourType.fromValue(tipoPasseio), 3);
+        // Vessel A já está disponível nesse dia (é o slot da reserva confirmada que
+        // está sendo cancelada) — sem isso, o estado "original" que o teste verifica
+        // logo abaixo não existe de fato, e o default (sem registro) já é false,
+        // tornando a asserção de "não muda ainda" vazia de sentido.
+        mockMvc.perform(put("/vessels/" + vesselA + "/availability/" + data + "/" + tipoPasseio)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new SetAvailabilityRequest(true, null))));
+
         // Vessel B (mesma frota) tem vaga disponível no dia
         mockMvc.perform(put("/vessels/" + vesselB + "/availability/" + data + "/" + tipoPasseio)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -84,7 +90,7 @@ class T021_CancelDayWithBookingsFlowIntegrationTest extends AbstractDynamoDbInte
         String data = "2026-12-25";
         String tipoPasseio = "alto_mar";
 
-        seedConfirmedBookingCount(vesselA, data, tipoPasseio, 3);
+        seedConfirmedBookingCount(vesselA, LocalDate.parse(data), TourType.fromValue(tipoPasseio), 3);
         // proprietário não tem nenhuma outra embarcação (frota de uma unidade só)
 
         mockMvc.perform(put("/vessels/" + vesselA + "/availability/" + data + "/" + tipoPasseio)
@@ -115,14 +121,6 @@ class T021_CancelDayWithBookingsFlowIntegrationTest extends AbstractDynamoDbInte
                 .getContentAsString();
 
         return objectMapper.readTree(responseBody).get("id").asText();
-    }
-
-    private void seedConfirmedBookingCount(String vesselId, String data, String tipoPasseio, int count) {
-        Map<String, AttributeValue> item = new HashMap<>();
-        item.put("PK", s("VESSEL#" + vesselId));
-        item.put("SK", s("BOOKINGCOUNT#" + data + "#" + tipoPasseio));
-        item.put("count", n(count));
-        putItem(item);
     }
 
     private record RegisterVesselRequest(

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.vesselmanagement.application.exception.RotationAvailabilityConflictException;
 import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
@@ -58,6 +59,8 @@ class SetAvailabilityUseCaseTest {
     private DynamoDbTable<DeclaredAvailability> availabilityTable;
     @Mock
     private DynamoDbTable<RotationSchedule> rotationTable;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private final LocalDate data = LocalDate.of(2026, 10, 5);
     private final Vessel vessel = Vessel.builder()
@@ -67,7 +70,7 @@ class SetAvailabilityUseCaseTest {
     private SetAvailabilityUseCase useCase() {
         return new SetAvailabilityUseCase(
                 vesselRepository, availabilityRepository, rotationScheduleRepository,
-                bookingCountRepository, cancelDayWithBookingsUseCase, enhancedClient);
+                bookingCountRepository, cancelDayWithBookingsUseCase, enhancedClient, eventPublisher);
     }
 
     @Test

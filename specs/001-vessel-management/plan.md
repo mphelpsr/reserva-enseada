@@ -145,7 +145,9 @@ Decisão registrada em 2026-07-12 (mesma lacuna que motivou T059 antes de ser fo
 | `booking.cancelled` | Manter `BOOKINGCOUNT#<data>#<tipoPasseio>` + fechar tentativa de transferência (T059) | Decrementa o contador da réplica local; se a origem for uma oferta de transferência (`vessel.transfer.viable`) não aceita/expirada, também fecha o registro em `TRANSFER#<transferId>` (T059, sem ação adicional de dados) |
 | `booking.transferred` | Fechar tentativa de transferência (T059) | Move a reserva para a embarcação/dia de destino combinado, atualizando `DeclaredAvailability`/`SEATLIMIT` do destino — não afeta `BOOKINGCOUNT` da embarcação original (a reserva não foi cancelada, só migrou de embarcação) |
 
-Ambos os tópicos já existem no módulo booking (`booking.cancelled`, `booking.transferred` — ver `plan-booking.md`, T053-T055); `booking.confirmed` é consumido aqui pela primeira vez especificamente para popular `BOOKINGCOUNT`. A fila SQS de suporte (T006b) assina os três.
+Ambos os tópicos já existem no módulo booking (`booking.cancelled`, `booking.transferred` — ver `plan-booking.md`, T053-T055); `booking.confirmed` é consumido aqui pela primeira vez especificamente para popular `BOOKINGCOUNT`. A fila SQS de suporte (T006b) assina os três, entregues a uma única Lambda (`booking_events_consumer`, infra/lambda.tf) que roteia por atributo de mensagem `event-type` (mesma convenção do publisher, `SnsEventListener`).
+
+**Payload de `booking.confirmed` (proposto por este módulo em T059b, a confirmar com `tasks-booking.md` T053):** `{ "vesselId": string, "data": "yyyy-MM-dd", "tipoPasseio": "alto_mar"|"orla" }`.
 
 ---
 

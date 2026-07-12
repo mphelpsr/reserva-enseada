@@ -13,3 +13,15 @@ app:
     # para apontar pro DynamoDB Local do Testcontainers.
     endpoint-override: ${DYNAMODB_ENDPOINT_OVERRIDE:}
     region: ${AWS_REGION:sa-east-1}
+  sns:
+    # ARNs preenchidos pelo Terraform (infra/sns.tf, T005) no deploy real; vazios
+    # em dev/teste local fazem o SnsEventListener pular a publicação (log only).
+    region: ${AWS_REGION:sa-east-1}
+    endpoint-override: ${SNS_ENDPOINT_OVERRIDE:}
+    vessel-availability-changed-topic-arn: ${SNS_VESSEL_AVAILABILITY_CHANGED_ARN:}
+    vessel-seatlimit-changed-topic-arn: ${SNS_VESSEL_SEATLIMIT_CHANGED_ARN:}
+    vessel-cancellation-operator-initiated-topic-arn: ${SNS_VESSEL_CANCELLATION_OPERATOR_INITIATED_ARN:}
+    vessel-transfer-viable-topic-arn: ${SNS_VESSEL_TRANSFER_VIABLE_ARN:}
+  stormglass:
+    # vazio pula o advisory (T056) — nunca bloqueia o job, Princípio I.
+    api-key: ${STORMGLASS_API_KEY:}
