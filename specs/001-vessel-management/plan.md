@@ -126,6 +126,7 @@ O conflito de FR-014 (rodízio x Alto Mar) é resolvido com uma resposta HTTP 40
 | `vessel.seatlimit.changed` | FR-015 | booking (recalcula vagas restantes: `max(0, limite − vendidas − retidas)`) |
 | `vessel.cancellation.operator-initiated` | FR-007 (após tentativa de transferência falhar) | booking (FR-008 do spec-booking: reembolso integral automático) |
 | `vessel.transfer.viable` | FR-007 (transferência encontrada) | booking (FR-009 do spec-booking: notifica comprador, exige confirmação) |
+| `vessel.recebedor.changed` | **Adicionado em 2026-07-12**, gap encontrado durante a Fase 3.3 do booking (ver "Contrato da Saga" abaixo) — booking precisa do `payment_recebedor_id` do proprietário pra montar o split no Pagar.me (FR-015 do spec-booking) e não tem chamada síncrona pra buscar isso do vessel-management | booking (réplica local `VESSEL#id/RECEBEDOR`, consultada em `ConfirmBookingUseCase`) |
 
 **Fluxo de cancelamento (Princípio VII) como Saga leve:**
 1. Proprietário tenta tornar dia indisponível com reservas confirmadas.
@@ -163,6 +164,7 @@ Revisão feita antes de iniciar a implementação do módulo booking, para os do
 | `vessel.seatlimit.changed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", limite: int}` |
 | `vessel.cancellation.operator-initiated` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", motivo: string}` |
 | `vessel.transfer.viable` | `{id: string, vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", targetVesselId: string, motivo: string}` — `id` é o `BookingTransferAttempt.id` (chave `TRANSFER#<id>` em `VESSEL#<vesselId>`); `motivo` foi adicionado nesta revisão (faltava — o comprador precisa do motivo real na notificação de transferência, mesma exigência já aplicada ao cancelamento) |
+| `vessel.recebedor.changed` | `{vesselId: string, recebedorId: string}` | **AINDA NÃO IMPLEMENTADO** — gap encontrado em 2026-07-12 durante a Fase 3.3 do booking. `payment_recebedor_id` vive em `Owner` (por `ownerId`, não por `vesselId`), e este módulo não tem hoje nenhum caso de uso que ESCREVA esse campo (`T019`/`PaymentRecebedorGateIntegrationTest` só lê; o cadastro em si foi registrado como "fora do escopo deste módulo/plan" — onboarding Pagar.me é integração externa). Publicar este evento exige: (a) um ponto de escrita real para `payment_recebedor_id` do proprietário (hoje inexistente no código, só semeado direto na tabela nos testes), e (b) publicar um evento por embarcação daquele proprietário sempre que o valor mudar (um owner pode ter várias embarcações — `vessel.seatlimit.changed`/`vessel.availability.changed` já são por vessel, mantendo a mesma convenção). Nenhuma tarefa numerada cobre isso ainda em `tasks-vessel-management.md` — precisa ser formalizada como nova tarefa antes de implementar. |
 
 **Consumidos deste módulo, publicados pelo booking (T053-T055 de `tasks-booking.md`) — CONFIRMADOS nesta revisão:**
 

@@ -120,6 +120,10 @@ resource "aws_lambda_function" "api" {
       SNS_BOOKING_TRANSFERRED_ARN      = aws_sns_topic.booking_transferred.arn
       PAGARME_API_KEY                  = var.pagarme_api_key
       PLATFORM_COMMISSION_PERCENTAGE   = var.platform_commission_percentage
+      SES_SOURCE_EMAIL                 = var.ses_source_email
+      SES_BOOKING_CONFIRMED_TEMPLATE   = aws_ses_template.booking_confirmed.name
+      SES_BOOKING_CANCELLED_TEMPLATE   = aws_ses_template.booking_cancelled.name
+      SES_BOOKING_TRANSFERRED_TEMPLATE = aws_ses_template.booking_transferred.name
     }
   }
 
@@ -232,6 +236,8 @@ resource "aws_lambda_function" "operator_events_consumer" {
       DYNAMODB_TABLE_NAME              = aws_dynamodb_table.booking.name
       SNS_BOOKING_CANCELLED_ARN        = aws_sns_topic.booking_cancelled.arn
       SNS_BOOKING_TRANSFERRED_ARN      = aws_sns_topic.booking_transferred.arn
+      SES_SOURCE_EMAIL                 = var.ses_source_email
+      SES_BOOKING_CANCELLED_TEMPLATE   = aws_ses_template.booking_cancelled.name
     }
   }
 }
@@ -276,6 +282,25 @@ resource "aws_iam_role_policy" "sweeper_lambda_dynamodb" {
   })
 }
 
+# Ofertas de transferência vencidas sem resposta em 48h (T046, segunda
+# responsabilidade do sweeper) publicam booking.cancelled para fechar a Saga
+# do lado vessel-management — sem isto a mensagem seria silenciosamente
+# pulada em produção (mesma resiliência de SnsEventListener quando o ARN não
+# está configurado), nunca chegando ao outro módulo.
+resource "aws_iam_role_policy" "sweeper_lambda_sns" {
+  name = "sns-publish"
+  role = aws_iam_role.sweeper_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sns:Publish"]
+      Resource = [aws_sns_topic.booking_cancelled.arn]
+    }]
+  })
+}
+
 resource "aws_lambda_function" "sweeper" {
   function_name = "${var.project_name}-booking-sweeper-${var.environment}"
   role          = aws_iam_role.sweeper_lambda.arn
@@ -293,6 +318,7 @@ resource "aws_lambda_function" "sweeper" {
     variables = {
       SPRING_CLOUD_FUNCTION_DEFINITION = "releaseExpiredHoldsJob"
       DYNAMODB_TABLE_NAME              = aws_dynamodb_table.booking.name
+      SNS_BOOKING_CANCELLED_ARN        = aws_sns_topic.booking_cancelled.arn
     }
   }
 }
