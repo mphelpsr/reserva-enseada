@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: vessel-management
+  cloud:
+    function:
+      definition: ${SPRING_CLOUD_FUNCTION_DEFINITION:apiHandler}
+
+app:
+  dynamodb:
+    table-name: ${DYNAMODB_TABLE_NAME:reserva-enseada-vessel-management-dev}
