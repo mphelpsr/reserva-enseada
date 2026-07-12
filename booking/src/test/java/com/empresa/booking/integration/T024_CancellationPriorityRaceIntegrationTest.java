@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,7 +104,6 @@ class T024_CancellationPriorityRaceIntegrationTest extends AbstractDynamoDbInteg
         item.put("tipoPasseio", s(tipoPasseio));
         item.put("status", s("confirmada"));
         item.put("compradaEm", s(Instant.now().toString()));
-        item.put("dataPasseio", s(LocalDate.now().plusDays(30).toString()));
         putItem(item);
     }
 }

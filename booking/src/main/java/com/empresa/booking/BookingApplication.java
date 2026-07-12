@@ -10,7 +10,7 @@ public class BookingApplication {
         SpringApplication.run(BookingApplication.class, args);
     }
 
-    // Beans de function (apiHandler, operatorEventsConsumer, releaseExpiredHoldsJob —
-    // ver infra/lambda.tf) entram na Fase 3.4, junto dos casos de uso reais
-    // (T038-T046) que eles expõem. Fase 3.1 é só o scaffold.
+    // Beans de function (apiHandler, operatorEventsConsumer — ver infra/lambda.tf)
+    // entram na Fase 3.4. releaseExpiredHoldsJob (T046) já existe como
+    // @Component (ReleaseExpiredHoldsJob) — nome de bean padrão do Spring.
 }
