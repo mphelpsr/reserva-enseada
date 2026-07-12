@@ -13,7 +13,7 @@
 - **T004** Terraform: API Gateway HTTP API + integração com Lambda + autorizador Cognito
 - **T005** Terraform: tópicos SNS — `vessel.availability.changed`, `vessel.seatlimit.changed`, `vessel.cancellation.operator-initiated`, `vessel.transfer.viable`
 - **T006** Terraform: EventBridge Scheduler + Lambda para o job de recálculo de advisory (FR-006)
-- **T006b** Terraform: fila SQS assinando os tópicos `booking.transferred` e `booking.cancelled`, publicados pelo módulo booking (suporte de infraestrutura para T059)
+- **T006b** Terraform: fila SQS assinando os tópicos `booking.transferred`, `booking.cancelled` e `booking.confirmed`, publicados pelo módulo booking (suporte de infraestrutura para T059/T059b — `booking.confirmed` alimenta a réplica `ConfirmedBookingCount`, decisão de 2026-07-12 em `plan-vessel-management.md`)
 - **T007** Scaffold do projeto Java (Spring Boot 3.x, Gradle/Maven), dependências: AWS SDK v2 Enhanced Client, Spring Cloud Function (adaptador Lambda)
 - **T008** Habilitar Lambda SnapStart na configuração de deploy
 
@@ -54,12 +54,14 @@
 - **T029 [P]** `domain/seatlimit/DefaultSeatUsageCounter.java`
 - **T030 [P]** `domain/advisory/WeatherTideAdvisory.java`
 - **T031 [P]** `domain/cancellation/{VesselTransfer, BookingTransferAttempt, OperatorInitiatedCancellation}.java`
+- **T031b [P]** `domain/bookingcount/ConfirmedBookingCount.java` — réplica local somente-leitura do nº de reservas confirmadas por dia/tipo de passeio, mantida via T059b (ver "Eventos Consumidos" em `plan-vessel-management.md`, decisão de 2026-07-12)
 
 ### Repositórios (infra/dynamodb — dependem de T002 e T023-T031)
 - **T032** `VesselRepository` (Enhanced Client, mapeamento single-table)
 - **T033** `AvailabilityRepository`
 - **T034** `RotationScheduleRepository`
 - **T035** `SeatLimitRepository` (inclui leitura/incremento do `DefaultSeatUsageCounter`)
+- **T035b** `BookingCountRepository` — leitura de `ConfirmedBookingCount` por dia/tipo de passeio (GetItem) e agregada por embarcação (Query `BOOKINGCOUNT#` com filtro de datas futuras, para T040b); escrita restrita ao consumidor T059b
 - **T036** `AdvisoryRepository` (leitura para API; escrita restrita ao job assíncrono)
 - **T037** Query GSI1 para listar embarcações por proprietário (FR-010)
 
@@ -67,7 +69,8 @@
 - **T038** `RegisterVesselUseCase` (FR-001, FR-009) — valida `payment_recebedor_id` antes de permitir status `ativa` (FR-016)
 - **T039** `UpdateVesselUseCase` (FR-002)
 - **T040** `TransferVesselUseCase` (FR-002 — exige transferência antes de remoção com reservas futuras)
-- **T041** `SetAvailabilityUseCase` (FR-003, FR-004)
+- **T040b** `RemoveVesselUseCase` (FR-002 — `DELETE /vessels/{id}`: consulta `BookingCountRepository` agregado da embarcação; zero reservas futuras confirmadas → remoção direta; caso contrário → 409, exigindo `TransferVesselUseCase` (T040) concluído antes de reenviar)
+- **T041** `SetAvailabilityUseCase` (FR-003, FR-004) — ao marcar um dia como indisponível, consulta `BookingCountRepository`: contador zero → efeito imediato (FR-004); contador > 0 → não aplica a mudança diretamente, delega para `CancelDayWithBookingsUseCase` (T046, FR-007)
 - **T042** `SetRotationScheduleUseCase` (FR-013) com verificação de conflito e resposta 409 estruturada (FR-014)
 - **T043** `SetSeatLimitUseCase` (FR-015 — aplica Opção C: nunca bloqueia, calcula `max(0, limite−vendidas−retidas)`, controla contador de default 10%)
 - **T044** `GetVesselCalendarUseCase` (leitura consolidada para o painel desktop)
@@ -80,7 +83,7 @@
 
 ## Fase 3.4 — Integração (API, mensageria, external, auth)
 
-- **T047** `VesselController` — `POST/PATCH /vessels`, `POST /vessels/{id}/transfer`
+- **T047** `VesselController` — `POST/PATCH /vessels`, `POST /vessels/{id}/transfer`, `DELETE /vessels/{id}` (T040b)
 - **T048** `AvailabilityController` — `PUT /vessels/{id}/availability/...`, `PUT /vessels/{id}/rotation/...`
 - **T049** `SeatLimitController` — `PUT /vessels/{id}/seat-limit/...`
 - **T050** `CalendarController` — `GET /vessels/{id}/calendar`
@@ -92,7 +95,8 @@
 - **T056** `StormglassClient` (infra/external) — integração com a API de maré/previsão
 - **T057** `AdvisoryCalculationJob` — Lambda acionada pelo EventBridge Scheduler, popula `WeatherTideAdvisory` via `StormglassClient`, nunca escreve em `DeclaredAvailability` (Princípio I)
 - **T058** Autorizador Cognito conectado ao API Gateway (T003/T004), validando token do proprietário em todas as rotas
-- **T059** Consumidor SQS assinando os tópicos `booking.transferred` e `booking.cancelled`, publicados pelo módulo booking (ver `tasks-booking.md`, T053-T055). Fecha o passo final da Saga coreografada de cancelamento (Princípio VII): ao receber `booking.transferred`, efetiva a mudança de disponibilidade movendo a reserva para a embarcação/dia acordado (atualiza `DeclaredAvailability` e `SEATLIMIT` da embarcação de destino); ao receber `booking.cancelled` (originado de uma oferta de transferência não aceita ou expirada), apenas confirma o encerramento do fluxo — a disponibilidade do dia original já havia sido tratada em T046, então não há ação adicional de dados, só fechamento de estado/log da tentativa de transferência (`VesselTransfer`/`BookingTransferAttempt`, ver `plan-vessel-management.md`). O payload de ambos os eventos deve ser validado em conjunto com a implementação de T055 em `tasks-booking.md`, para os dois lados combinarem o mesmo contrato.
+- **T059** Consumidor SQS assinando os tópicos `booking.transferred` e `booking.cancelled`, publicados pelo módulo booking (ver `tasks-booking.md`, T053-T055). Fecha o passo final da Saga coreografada de cancelamento (Princípio VII): ao receber `booking.transferred`, efetiva a mudança de disponibilidade movendo a reserva para a embarcação/dia acordado (atualiza `DeclaredAvailability` e `SEATLIMIT` da embarcação de destino); ao receber `booking.cancelled` (originado de uma oferta de transferência não aceita ou expirada), apenas confirma o encerramento do fluxo — a disponibilidade do dia original já havia sido tratada em T046, então não há ação adicional de dados, só fechamento de estado/log da tentativa de transferência (`VesselTransfer`/`BookingTransferAttempt`, ver `plan-vessel-management.md`). O payload de ambos os eventos deve ser validado em conjunto com a implementação de T055 em `tasks-booking.md`, para os dois lados combinarem o mesmo contrato. Além do fechamento da Saga, `booking.cancelled` também decrementa `ConfirmedBookingCount` (T031b) via `BookingCountRepository` (T035b) — mesma responsabilidade de manutenção da réplica local que T059b, então ambos os handlers podem viver na mesma classe de listener.
+- **T059b** Consumidor SQS assinando o tópico `booking.confirmed`, publicado pelo módulo booking (ver `tasks-booking.md`, T053). Mantém a réplica local `ConfirmedBookingCount` (T031b, `plan-vessel-management.md` — decisão de 2026-07-12): incrementa o contador de `VESSEL#id/BOOKINGCOUNT#data#tipoPasseio` a cada reserva confirmada. É o dado que `SetAvailabilityUseCase` (T041) e `RemoveVesselUseCase` (T040b) consultam para decidir entre FR-004 (efeito imediato) e FR-007 (Saga de transferência/cancelamento) — sem isso, o módulo não teria como saber se um dia tem reserva.
 
 **Checkpoint:** todos os contract tests da Fase 3.2 devem passar.
 
