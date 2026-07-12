@@ -10,6 +10,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
+
 /**
  * Contract test: GET /vessels/{id}/advisory/{data} (FR-006, FR-008).
  *
@@ -19,7 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T016_GetAdvisoryContractTest {
+class T016_GetAdvisoryContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

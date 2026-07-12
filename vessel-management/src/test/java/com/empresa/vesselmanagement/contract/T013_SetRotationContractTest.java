@@ -13,6 +13,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
+
 /**
  * Contract test: PUT /vessels/{id}/rotation/{data} (FR-013, FR-014), incluindo a
  * resposta 409 estruturada quando Alto Mar já está disponível nesse dia/embarcação.
@@ -26,7 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T013_SetRotationContractTest {
+class T013_SetRotationContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

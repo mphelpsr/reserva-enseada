@@ -65,8 +65,22 @@
 
     <!-- Adaptador Lambda (plan.md - Technical Context, T007). Só o adaptador de runtime
          (FunctionInvoker) — spring-cloud-function-web NÃO entra: seu FunctionController
-         mapeia rotas HTTP genéricas ("/**") que colidiriam com os @RestController reais
-         (Fase 3.4) e mascarariam 404s legítimos nos testes de contrato. -->
+         mapeia rotas HTTP genéricas ("/**") que, mesmo com os @RestController reais
+         (Fase 3.4) já registrados e corretamente priorizados pelo Spring MVC,
+         continuam capturando qualquer caminho NÃO mapeado (ex.: typo de rota) e
+         devolvendo 200 com o corpo da function em vez de 404 — e pior, se a única
+         function registrada virar algo com efeito colateral real (ex.: T057
+         advisoryCalculationJob), uma rota inválida acabaria disparando essa function
+         via HTTP sem querer. Empiricamente verificado subindo a aplicação de verdade
+         (ver notas do commit desta fase).
+         LIMITAÇÃO CONHECIDA: sem spring-cloud-function-web, o FunctionInvoker sozinho
+         não tem uma ponte documentada para rotear eventos do Lambda/API Gateway até o
+         DispatcherServlet do Spring MVC — os controllers da Fase 3.4 foram validados
+         via Tomcat embarcado (mvn package + execução local) e MockMvc, não via
+         Lambda real. Antes do deploy AWS de fato, avaliar
+         `aws-serverless-java-container-springboot3` (proxy API Gateway -> DispatcherServlet,
+         com suporte a SnapStart) como adaptador HTTP mais adequado a uma API REST
+         completa do que spring-cloud-function, que é voltado a functions simples. -->
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-function-adapter-aws</artifactId>

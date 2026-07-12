@@ -3,8 +3,12 @@ package com.empresa.vesselmanagement.application;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import com.empresa.vesselmanagement.application.event.AvailabilityChangedEvent;
+import com.empresa.vesselmanagement.application.event.CancellationInitiatedEvent;
+import com.empresa.vesselmanagement.application.event.TransferViableEvent;
 import com.empresa.vesselmanagement.application.exception.VesselNotFoundException;
 import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
 import com.empresa.vesselmanagement.domain.availability.TourType;
@@ -28,10 +32,9 @@ import java.time.LocalDate;
  * janela de análise.
  *
  * "Vaga disponível" aqui é o melhor proxy que este módulo tem sem acessar dados do
- * booking: dia marcado disponível + limite de vagas na plataforma > 0. A publicação
- * dos eventos SNS (`vessel.transfer.viable` / `vessel.cancellation.operator-initiated`)
- * é responsabilidade de T054/T055 (Fase 3.4), disparada a partir do resultado deste
- * caso de uso.
+ * booking: dia marcado disponível + limite de vagas na plataforma > 0. Publica
+ * `vessel.transfer.viable` / `vessel.cancellation.operator-initiated` via
+ * ApplicationEventPublisher (T054/T055, consumido por SnsEventListener).
  */
 @Service
 public class CancelDayWithBookingsUseCase {
@@ -40,16 +43,19 @@ public class CancelDayWithBookingsUseCase {
     private final AvailabilityRepository availabilityRepository;
     private final SeatLimitRepository seatLimitRepository;
     private final BookingTransferAttemptRepository transferAttemptRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public CancelDayWithBookingsUseCase(
             VesselRepository vesselRepository,
             AvailabilityRepository availabilityRepository,
             SeatLimitRepository seatLimitRepository,
-            BookingTransferAttemptRepository transferAttemptRepository) {
+            BookingTransferAttemptRepository transferAttemptRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.vesselRepository = vesselRepository;
         this.availabilityRepository = availabilityRepository;
         this.seatLimitRepository = seatLimitRepository;
         this.transferAttemptRepository = transferAttemptRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public BookingTransferAttempt cancelDay(String vesselId, LocalDate data, TourType tipoPasseio, String motivo) {
@@ -74,7 +80,9 @@ public class CancelDayWithBookingsUseCase {
 
         transferAttemptRepository.save(attempt);
 
-        if (alternative.isEmpty()) {
+        if (alternative.isPresent()) {
+            eventPublisher.publishEvent(new TransferViableEvent(vesselId, data, tipoPasseio, alternative.get().getId()));
+        } else {
             availabilityRepository.save(DeclaredAvailability.builder()
                     .vesselId(vesselId)
                     .data(data)
@@ -82,6 +90,8 @@ public class CancelDayWithBookingsUseCase {
                     .disponivel(false)
                     .motivo(motivo)
                     .build());
+            eventPublisher.publishEvent(new AvailabilityChangedEvent(vesselId, data, tipoPasseio, false, motivo));
+            eventPublisher.publishEvent(new CancellationInitiatedEvent(vesselId, data, tipoPasseio, motivo));
         }
 
         return attempt;

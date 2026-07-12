@@ -13,6 +13,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
+
 /**
  * Contract test: PATCH /vessels/{id} (FR-002).
  *
@@ -22,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T010_UpdateVesselContractTest {
+class T010_UpdateVesselContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

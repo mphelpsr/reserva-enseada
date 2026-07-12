@@ -10,11 +10,14 @@ import com.empresa.vesselmanagement.domain.vessel.Vessel;
 
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Expression;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactPutItemEnhancedRequest;
 import software.amazon.awssdk.enhanced.dynamodb.model.TransactWriteItemsEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 
 @Repository
@@ -32,6 +35,25 @@ public class VesselRepository {
 
     public Optional<Vessel> findById(String id) {
         return Optional.ofNullable(table.getItem(Key.builder().partitionValue(Vessel.pkFor(id)).sortValue(Vessel.SK).build()));
+    }
+
+    /**
+     * T057 (AdvisoryCalculationJob): lista todas as embarcações da tabela. Full scan
+     * com filtro (SK=METADATA e PK começa com VESSEL#, pra não pegar itens de Owner
+     * ou de outros tipos do single-table) — aceitável dado o volume baixo do módulo
+     * (Princípio VI); revisar se o número de embarcações crescer muito.
+     */
+    public List<Vessel> findAll() {
+        Expression onlyVesselMetadata = Expression.builder()
+                .expression("SK = :sk AND begins_with(PK, :pkPrefix)")
+                .putExpressionValue(":sk", AttributeValue.builder().s(Vessel.SK).build())
+                .putExpressionValue(":pkPrefix", AttributeValue.builder().s("VESSEL#").build())
+                .build();
+
+        return table.scan(ScanEnhancedRequest.builder().filterExpression(onlyVesselMetadata).build())
+                .items()
+                .stream()
+                .toList();
     }
 
     public List<Vessel> findByOwnerId(String ownerId) {

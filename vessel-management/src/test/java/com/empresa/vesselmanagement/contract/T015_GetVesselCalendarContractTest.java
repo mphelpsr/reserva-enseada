@@ -10,13 +10,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
+
 /**
  * Contract test: GET /vessels/{id}/calendar?from=&to= — visão consolidada usada
  * pelo painel desktop do proprietário (plan.md, Phase 1 — API).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T015_GetVesselCalendarContractTest {
+class T015_GetVesselCalendarContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

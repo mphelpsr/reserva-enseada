@@ -39,6 +39,15 @@ public class Vessel {
     private String portoSaida;
     private VesselStatus status;
 
+    /**
+     * Coordenadas do porto de saída, opcionais — FR-001 não exige geolocalização,
+     * só o texto livre `portoSaida`. Sem lat/lon, AdvisoryCalculationJob (T057) pula
+     * a embarcação (não há como consultar o Stormglass sem coordenadas). Preenchidas
+     * manualmente por enquanto; um passo de geocoding fica para uma iteração futura.
+     */
+    private Double latitude;
+    private Double longitude;
+
     public static String pkFor(String vesselId) {
         return "VESSEL#" + vesselId;
     }

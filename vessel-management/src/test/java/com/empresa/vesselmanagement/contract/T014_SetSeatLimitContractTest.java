@@ -13,6 +13,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
+
 /**
  * Contract test: PUT /vessels/{id}/seat-limit/{data}/{tipoPasseio} (FR-015).
  *
@@ -22,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-class T014_SetSeatLimitContractTest {
+class T014_SetSeatLimitContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

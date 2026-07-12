@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
 import com.empresa.vesselmanagement.domain.availability.TourType;
@@ -43,6 +44,9 @@ class CancelDayWithBookingsUseCaseTest {
     @Mock
     private BookingTransferAttemptRepository transferAttemptRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final LocalDate data = LocalDate.of(2026, 12, 24);
 
     private Vessel vessel(String id, String ownerId) {
@@ -66,7 +70,7 @@ class CancelDayWithBookingsUseCaseTest {
                         .limite(5).origem(SeatLimitOrigin.MANUAL).build()));
 
         CancelDayWithBookingsUseCase useCase = new CancelDayWithBookingsUseCase(
-                vesselRepository, availabilityRepository, seatLimitRepository, transferAttemptRepository);
+                vesselRepository, availabilityRepository, seatLimitRepository, transferAttemptRepository, eventPublisher);
 
         BookingTransferAttempt attempt = useCase.cancelDay("vessel-a", data, TourType.ALTO_MAR, "avaria no motor");
 
@@ -84,7 +88,7 @@ class CancelDayWithBookingsUseCaseTest {
         when(vesselRepository.findByOwnerId("owner-2")).thenReturn(List.of(origem)); // frota de uma unidade só
 
         CancelDayWithBookingsUseCase useCase = new CancelDayWithBookingsUseCase(
-                vesselRepository, availabilityRepository, seatLimitRepository, transferAttemptRepository);
+                vesselRepository, availabilityRepository, seatLimitRepository, transferAttemptRepository, eventPublisher);
 
         BookingTransferAttempt attempt = useCase.cancelDay("vessel-a", data, TourType.ALTO_MAR, "força maior");
 
@@ -106,7 +110,7 @@ class CancelDayWithBookingsUseCaseTest {
         when(vesselRepository.findByOwnerId("owner-1")).thenReturn(List.of(origem));
 
         CancelDayWithBookingsUseCase useCase = new CancelDayWithBookingsUseCase(
-                vesselRepository, availabilityRepository, seatLimitRepository, transferAttemptRepository);
+                vesselRepository, availabilityRepository, seatLimitRepository, transferAttemptRepository, eventPublisher);
 
         BookingTransferAttempt attempt = useCase.cancelDay("vessel-a", data, TourType.ALTO_MAR, "manutenção");
 
