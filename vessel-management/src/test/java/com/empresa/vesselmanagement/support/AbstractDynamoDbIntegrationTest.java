@@ -45,7 +45,15 @@ public abstract class AbstractDynamoDbIntegrationTest {
 
     static {
         DYNAMODB_LOCAL = new GenericContainer<>(DockerImageName.parse("amazon/dynamodb-local:2.5.2"))
-                .withExposedPorts(8000);
+                .withExposedPorts(8000)
+                // -sharedDb: sem essa flag, o DynamoDB Local isola os dados por combinação
+                // de region+accessKeyId — o client daqui (região/credenciais de teste) e o
+                // client da aplicação (região/credenciais de produção, resolvidos via
+                // application.yml) acabam em bancos diferentes dentro do mesmo container,
+                // e a app recebe ResourceNotFoundException para uma tabela que "existe" do
+                // ponto de vista deste client. Com -sharedDb, um único banco é usado
+                // independente de region/credenciais.
+                .withCommand("-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb");
         DYNAMODB_LOCAL.start();
 
         DYNAMO_DB_CLIENT = DynamoDbClient.builder()
