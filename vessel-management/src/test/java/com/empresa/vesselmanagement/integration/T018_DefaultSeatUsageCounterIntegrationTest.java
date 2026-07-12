@@ -85,8 +85,13 @@ class T018_DefaultSeatUsageCounterIntegrationTest extends AbstractDynamoDbIntegr
     }
 
     private String registerVesselWithCapacity(int capacidadeMaxima) throws Exception {
+        // sufixo único por chamada: o identificador único (FR-009) é
+        // numeroRegistroCapitania+cpfCnpj+nomeLegal, e este método é chamado mais de
+        // uma vez com a MESMA capacidadeMaxima (uma vez por método de teste) — sem
+        // isso, a segunda chamada colide com a primeira (409) e a resposta não tem "id".
+        String suffix = java.util.UUID.randomUUID().toString();
         var request = new RegisterVesselRequest(
-                "owner-seatcount", "Embarcação " + capacidadeMaxima, "Fantasia", "CP-" + capacidadeMaxima,
+                "owner-seatcount", "Embarcação " + capacidadeMaxima, "Fantasia", "CP-" + capacidadeMaxima + "-" + suffix,
                 "00.000.000/0001-00", capacidadeMaxima, "Porto Teste");
 
         String responseBody = mockMvc.perform(post("/vessels")

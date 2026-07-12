@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -14,6 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.empresa.vesselmanagement.domain.vessel.Vessel;
+import com.empresa.vesselmanagement.domain.vessel.VesselStatus;
 import com.empresa.vesselmanagement.support.AbstractDynamoDbIntegrationTest;
 
 /**
@@ -36,6 +39,30 @@ class T011_TransferVesselContractTest extends AbstractDynamoDbIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void seedVesselFixtures() {
+        seedVessel(vessel("vessel-1", "Porto A", 20));
+        // compatível: mesmo porto, capacidade >= origem (FR-002: "mesma capacidade mínima e porto de saída")
+        seedVessel(vessel("vessel-2", "Porto A", 20));
+        // incompatível: porto de saída diferente
+        seedVessel(vessel("vessel-incompativel", "Porto B", 20));
+        seedVessel(vessel("vessel-sem-reservas", "Porto A", 20));
+    }
+
+    private Vessel vessel(String id, String portoSaida, int capacidadeMaxima) {
+        return Vessel.builder()
+                .id(id)
+                .ownerId("owner-t011")
+                .nomeLegal("Nome Legal " + id)
+                .nomeFantasia("Fantasia " + id)
+                .numeroRegistroCapitania("CP-" + id)
+                .cpfCnpjProprietario("000.000.000-00")
+                .capacidadeMaxima(capacidadeMaxima)
+                .portoSaida(portoSaida)
+                .status(VesselStatus.PENDENTE_CONFIGURACAO)
+                .build();
+    }
 
     @Test
     void deveTransferirReservasParaEmbarcacaoCompativel() throws Exception {
