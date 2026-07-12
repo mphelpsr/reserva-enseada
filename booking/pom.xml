@@ -133,6 +133,14 @@
       <artifactId>localstack</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- T026: stub HTTP do Pagar.me para verificar o split de comissão (FR-015)
+         sem chamar o gateway real em teste. -->
+    <dependency>
+      <groupId>org.wiremock</groupId>
+      <artifactId>wiremock-standalone</artifactId>
+      <version>3.9.2</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

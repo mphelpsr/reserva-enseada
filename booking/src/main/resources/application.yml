@@ -23,6 +23,7 @@ app:
     # split de pagamento (FR-015) — comissão configurável, nunca hardcoded no
     # código; vazio em dev/teste local pula a chamada real ao Pagar.me.
     pagarme-api-key: ${PAGARME_API_KEY:}
+    pagarme-base-url: ${PAGARME_BASE_URL:https://api.pagar.me}
     platform-commission-percentage: ${PLATFORM_COMMISSION_PERCENTAGE:12}
   hold:
     # FR-004: janela de retenção de vagas durante checkout.
