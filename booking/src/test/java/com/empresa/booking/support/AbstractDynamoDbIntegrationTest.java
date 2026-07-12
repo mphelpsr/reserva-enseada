@@ -1,8 +1,10 @@
 package com.empresa.booking.support;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -78,6 +80,23 @@ public abstract class AbstractDynamoDbIntegrationTest {
                                 KeySchemaElement.builder().attributeName("GSI1SK").keyType(KeyType.RANGE).build())
                         .projection(Projection.builder().projectionType(ProjectionType.ALL).build())
                         .build()));
+    }
+
+    /**
+     * Container/tabela são "singleton" (campo estático) compartilhados entre
+     * TODAS as classes de teste do módulo — sem isto, itens deixados por um
+     * teste (ex.: um HOLD# expirado semeado só pra testar "ignorado antes do
+     * TTL físico") ficam visíveis para o full scan de outro teste que rode
+     * DEPOIS na mesma tabela (ex.: o sweeper T046), contaminando a contagem.
+     */
+    @BeforeEach
+    void limparTabelaCompartilhada() {
+        DYNAMO_DB_CLIENT.scan(builder -> builder.tableName(TABLE_NAME)).items().forEach(item -> {
+            Map<String, AttributeValue> key = new HashMap<>();
+            key.put("PK", item.get("PK"));
+            key.put("SK", item.get("SK"));
+            DYNAMO_DB_CLIENT.deleteItem(builder -> builder.tableName(TABLE_NAME).key(key));
+        });
     }
 
     @DynamicPropertySource
