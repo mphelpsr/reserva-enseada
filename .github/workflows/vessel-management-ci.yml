@@ -1,0 +1,42 @@
+name: vessel-management CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "vessel-management/**"
+      - ".github/workflows/vessel-management-ci.yml"
+  pull_request:
+    paths:
+      - "vessel-management/**"
+      - ".github/workflows/vessel-management-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Runners do GitHub Actions já vêm com Docker — os testes de contrato/integração
+    # (T009-T022, incluindo o teste de concorrência T022) usam Testcontainers/DynamoDB
+    # Local de verdade aqui, diferente de sandboxes sem acesso a Docker.
+    defaults:
+      run:
+        working-directory: vessel-management
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: mvn verify (unit + contract + integration, T009-T022)
+        run: mvn -B verify
+
+      - name: Publicar relatórios de teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: vessel-management/target/surefire-reports/
+          retention-days: 14
