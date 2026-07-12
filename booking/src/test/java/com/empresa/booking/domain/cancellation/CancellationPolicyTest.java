@@ -44,4 +44,34 @@ class CancellationPolicyTest {
 
         assertThat(CancellationPolicy.dentroDaJanela(compradaEm, dataPasseio, agora)).isTrue();
     }
+
+    @Test
+    void recusaUmSegundoAposOLimiteDeSeteDiasDaCompraMesmoComPasseioDistante() {
+        Instant agora = Instant.parse("2026-01-01T00:00:00Z");
+        Instant compradaEm = agora.minus(7, ChronoUnit.DAYS).minus(1, ChronoUnit.SECONDS);
+        LocalDate dataPasseio = agora.plus(60, ChronoUnit.DAYS).atZone(ZoneOffset.UTC).toLocalDate();
+
+        assertThat(CancellationPolicy.dentroDaJanela(compradaEm, dataPasseio, agora)).isFalse();
+    }
+
+    @Test
+    void recusaUmSegundoAposOLimiteDeQuarentaEOitoHorasMesmoDentroDeSeteDiasDaCompra() {
+        LocalDate dataPasseio = LocalDate.of(2026, 1, 10);
+        Instant limiteAntesDoPasseio = dataPasseio.atStartOfDay(ZoneOffset.UTC).toInstant().minus(48, ChronoUnit.HOURS);
+        Instant agora = limiteAntesDoPasseio.plus(1, ChronoUnit.SECONDS);
+        Instant compradaEm = agora;
+
+        assertThat(CancellationPolicy.dentroDaJanela(compradaEm, dataPasseio, agora)).isFalse();
+    }
+
+    @Test
+    void combinaAsDuasCondicoesQuandoCompraOcorreDentroDasQuarentaEOitoHorasDoPasseio() {
+        // compra feita a menos de 7 dias do passeio: a checagem de 48h já comprime o prazo
+        // efetivo sozinha, sem precisar de um cálculo de "prazo comprimido" separado.
+        Instant agora = Instant.parse("2026-01-01T12:00:00Z");
+        LocalDate dataPasseio = LocalDate.of(2026, 1, 2);
+        Instant compradaEm = agora;
+
+        assertThat(CancellationPolicy.dentroDaJanela(compradaEm, dataPasseio, agora)).isFalse();
+    }
 }
