@@ -19,3 +19,9 @@ resource "aws_sns_topic" "vessel_cancellation_operator_initiated" {
 resource "aws_sns_topic" "vessel_transfer_viable" {
   name = "${var.project_name}-vessel-transfer-viable-${var.environment}"
 }
+
+# T059c — chave Pix do proprietário mudou; payload {vesselId, pixKey}, publicado uma
+# vez por embarcação do proprietário (ver spec.md FR-016, revisão de 2026-07-12).
+resource "aws_sns_topic" "vessel_recebedor_changed" {
+  name = "${var.project_name}-vessel-recebedor-changed-${var.environment}"
+}

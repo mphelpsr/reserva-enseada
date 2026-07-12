@@ -20,10 +20,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * de comissão embutido (FR-015): a plataforma e o proprietário recebem cada
  * um sua parte na MESMA transação, nunca um repasse manual posterior.
  *
- * `recebedorId` é responsabilidade de quem chama (`ConfirmBookingUseCase`) —
- * este cliente não sabe de onde ele vem; ver `VesselRecebedorRepository` e a
- * nota sobre `vessel.recebedor.changed` (ainda não publicado do lado
- * vessel-management, "Contrato da Saga" em plan.md) para o racional completo.
+ * **Desatualizado em relação ao modelo de pagamento vigente (revisão de
+ * 2026-07-12, ver FR-015 em spec.md)**: o repasse ao proprietário passou a
+ * ser split instantâneo via Pix (provedor tipo Transfeera/OpenPix), não mais
+ * split nativo do Pagar.me por `recipient_id`. Este cliente continua
+ * chamando o endpoint de split do Pagar.me (`/core/v5/orders`) como estava —
+ * `pixKey` é repassado aqui só para preservar o contrato de chamada de
+ * `ConfirmBookingUseCase`, mas a integração real com o provedor de split Pix
+ * NÃO está implementada nesta classe (não há contrato de API definido em
+ * nenhuma spec/plan para isso). Cartão continua sendo capturado via Pagar.me
+ * normalmente — só o mecanismo de repasse ao proprietário precisa trocar
+ * quando essa integração for desenhada.
+ *
+ * `pixKey` é responsabilidade de quem chama (`ConfirmBookingUseCase`) — este
+ * cliente não sabe de onde ele vem; ver `VesselRecebedorRepository` e a nota
+ * sobre `vessel.recebedor.changed` ("Contrato da Saga" em plan.md) para o
+ * racional completo.
  */
 @Component
 public class PagarmeClient {
@@ -44,19 +56,19 @@ public class PagarmeClient {
     }
 
     /**
-     * Cria a ordem com split: `recebedorId` recebe `valorLiquidoCentavos`, a
+     * Cria a ordem com split: `pixKey` recebe `valorLiquidoCentavos`, a
      * plataforma retém `valorComissaoCentavos` — nunca lança em caso de
      * pagamento recusado pelo gateway em si (o chamador decide o que fazer
      * com um status != "paid"), só em falha de infraestrutura/rede.
      */
     public PagarmeOrderResult createOrderWithSplit(
-            String paymentReference, String recebedorId, long valorTotalCentavos, long valorComissaoCentavos, long valorLiquidoCentavos) {
+            String paymentReference, String pixKey, long valorTotalCentavos, long valorComissaoCentavos, long valorLiquidoCentavos) {
         try {
             Map<String, Object> payload = Map.of(
                     "payment_reference", paymentReference,
                     "amount", valorTotalCentavos,
                     "split", List.of(
-                            Map.of("recipient_id", recebedorId, "amount", valorLiquidoCentavos, "type", "flat"),
+                            Map.of("recipient_id", pixKey, "amount", valorLiquidoCentavos, "type", "flat"),
                             Map.of("recipient_id", "platform", "amount", valorComissaoCentavos, "type", "flat")));
 
             HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/core/v5/orders"))

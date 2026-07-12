@@ -12,13 +12,13 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbParti
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
 /**
- * VESSEL#{vesselId} / RECEBEDOR (plan.md — "Contrato da Saga", decisão de
- * 2026-07-12). Réplica local somente-leitura do `payment_recebedor_id` do
- * proprietário daquela embarcação, mantida via evento `vessel.recebedor.changed`
- * (T052b — ainda não implementado do lado publisher, ver `tasks-vessel-management.md`
- * T059c). `ConfirmBookingUseCase` (T039) consulta este item pra montar o split
- * de pagamento no Pagar.me (FR-015) — sem réplica, a confirmação é recusada
- * (nunca chama o gateway sem um recebedor válido).
+ * VESSEL#{vesselId} / RECEBEDOR (plan.md — "Contrato da Saga"). Réplica local
+ * somente-leitura da chave Pix (`payment_recebedor_id`) do proprietário
+ * daquela embarcação, mantida via evento `vessel.recebedor.changed` (T052b,
+ * publicado do lado vessel-management por T059c). `ConfirmBookingUseCase`
+ * (T039) consulta este item pra montar o repasse via split Pix (FR-015) —
+ * sem réplica, a confirmação é recusada (nunca chama o provedor sem uma
+ * chave Pix válida).
  */
 @DynamoDbBean
 @Data
@@ -30,7 +30,7 @@ public class VesselRecebedor {
     public static final String SK = "RECEBEDOR";
 
     private String vesselId;
-    private String recebedorId;
+    private String pixKey;
 
     @DynamoDbPartitionKey
     @DynamoDbAttribute("PK")

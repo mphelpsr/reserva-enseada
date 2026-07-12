@@ -13,7 +13,10 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortK
 
 /**
  * OWNER#{id} / METADATA (plan.md — Phase 1, Data Model). `paymentRecebedorId` é o
- * portão de ativação de qualquer embarcação do proprietário (FR-016).
+ * portão de ativação de qualquer embarcação do proprietário (FR-016) — desde a
+ * revisão de 2026-07-12, guarda a CHAVE PIX do proprietário (split instantâneo via
+ * provedor tipo Transfeera/OpenPix), não mais uma subconta de gateway. Escrito por
+ * `SetPaymentPixKeyUseCase` (T059c).
  */
 @DynamoDbBean
 @Data

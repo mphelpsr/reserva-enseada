@@ -66,7 +66,7 @@ class ConfirmBookingUseCaseTest {
             .data(LocalDate.now().plusDays(10)).tipoPasseio(TourType.ALTO_MAR).quantidade(2)
             .expiresAt(Instant.now().plus(5, ChronoUnit.MINUTES)).valorTotalCentavos(30000L).build();
 
-    private final VesselRecebedor recebedor = VesselRecebedor.builder().vesselId("vessel-1").recebedorId("rec-1").build();
+    private final VesselRecebedor recebedor = VesselRecebedor.builder().vesselId("vessel-1").pixKey("rec-1").build();
 
     @Test
     void deveConfirmarComSplitDeDozePorCentoPorPadrao() {

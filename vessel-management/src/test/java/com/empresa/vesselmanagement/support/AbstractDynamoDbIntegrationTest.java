@@ -13,6 +13,7 @@ import com.empresa.vesselmanagement.domain.advisory.WeatherTideAdvisory;
 import com.empresa.vesselmanagement.domain.availability.DeclaredAvailability;
 import com.empresa.vesselmanagement.domain.availability.TourType;
 import com.empresa.vesselmanagement.domain.bookingcount.ConfirmedBookingCount;
+import com.empresa.vesselmanagement.domain.vessel.Owner;
 import com.empresa.vesselmanagement.domain.vessel.Vessel;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -119,6 +120,10 @@ public abstract class AbstractDynamoDbIntegrationTest {
 
     protected static void seedVessel(Vessel vessel) {
         ENHANCED_CLIENT.table(TABLE_NAME, TableSchema.fromBean(Vessel.class)).putItem(vessel);
+    }
+
+    protected static void seedOwner(Owner owner) {
+        ENHANCED_CLIENT.table(TABLE_NAME, TableSchema.fromBean(Owner.class)).putItem(owner);
     }
 
     protected static void seedAvailability(DeclaredAvailability availability) {

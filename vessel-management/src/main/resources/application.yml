@@ -22,6 +22,7 @@ app:
     vessel-seatlimit-changed-topic-arn: ${SNS_VESSEL_SEATLIMIT_CHANGED_ARN:}
     vessel-cancellation-operator-initiated-topic-arn: ${SNS_VESSEL_CANCELLATION_OPERATOR_INITIATED_ARN:}
     vessel-transfer-viable-topic-arn: ${SNS_VESSEL_TRANSFER_VIABLE_ARN:}
+    vessel-recebedor-changed-topic-arn: ${SNS_VESSEL_RECEBEDOR_CHANGED_ARN:}
   stormglass:
     # vazio pula o advisory (T056) — nunca bloqueia o job, Princípio I.
     api-key: ${STORMGLASS_API_KEY:}

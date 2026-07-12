@@ -120,6 +120,6 @@ public class OperatorEventsConsumer implements Consumer<SQSEvent> {
     private void handleRecebedorChanged(String messageJson) throws Exception {
         VesselRecebedorChanged payload = objectMapper.readValue(messageJson, VesselRecebedorChanged.class);
         vesselRecebedorRepository.save(
-                VesselRecebedor.builder().vesselId(payload.vesselId()).recebedorId(payload.recebedorId()).build());
+                VesselRecebedor.builder().vesselId(payload.vesselId()).pixKey(payload.pixKey()).build());
     }
 }
