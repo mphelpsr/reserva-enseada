@@ -23,7 +23,7 @@
     <java.version>21</java.version>
     <spring-cloud.version>2023.0.3</spring-cloud.version>
     <aws-sdk.version>2.28.16</aws-sdk.version>
-    <testcontainers.version>1.20.2</testcontainers.version>
+    <testcontainers.version>1.20.6</testcontainers.version>
   </properties>
 
   <dependencyManagement>
@@ -63,11 +63,10 @@
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
-    <!-- Adaptador Lambda (plan.md - Technical Context) -->
-    <dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-function-web</artifactId>
-    </dependency>
+    <!-- Adaptador Lambda (plan.md - Technical Context, T007). Só o adaptador de runtime
+         (FunctionInvoker) — spring-cloud-function-web NÃO entra: seu FunctionController
+         mapeia rotas HTTP genéricas ("/**") que colidiriam com os @RestController reais
+         (Fase 3.4) e mascarariam 404s legítimos nos testes de contrato. -->
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-function-adapter-aws</artifactId>
@@ -76,6 +75,12 @@
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-lambda-java-events</artifactId>
       <version>3.13.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <!-- AWS SDK v2 Enhanced Client (DynamoDB) + SNS/SQS -->

@@ -83,6 +83,8 @@ vessel-management/
 | `VESSEL#<vesselId>` | `COUNTER#DEFAULTSEAT` | Contador cumulativo do padrão automático de 10% (FR-015) |
 | `VESSEL#<vesselId>` | `ADVISORY#<data>` | Indicador de maré/previsão, gerado pelo job assíncrono (FR-006) |
 | `VESSEL#<vesselId>` | `TRANSFER#<transferId>` | Registro de tentativa/execução de transferência (FR-002, FR-007) |
+| `VESSEL#<vesselId>` | `BOOKINGCOUNT#<data>#<tipoPasseio>` | Réplica local do nº de reservas confirmadas naquele dia/tipo de passeio, mantida via consumo dos eventos `booking.confirmed`/`booking.cancelled` publicados pelo módulo booking (ver "Eventos Consumidos" abaixo). Único propósito: decidir entre FR-004 (efeito imediato, contador zero) e FR-007 (Saga de transferência/cancelamento, contador > 0) ao tornar um dia indisponível ou remover uma embarcação — não é fonte de verdade de reservas, essa é do módulo booking |
+| `OWNER#<ownerId>` | `METADATA` | Dados cadastrais do proprietário, incluindo `payment_recebedor_id` (FR-016) |
 | `OWNER#<ownerId>` | `VESSEL#<vesselId>` | Item de índice para listar embarcações por proprietário |
 
 **GSI1** (`GSI1PK = OWNER#<ownerId>`, `GSI1SK = VESSEL#<vesselId>`): suporta o access pattern "listar embarcações de um proprietário" (FR-010) sem scan.
@@ -95,6 +97,7 @@ vessel-management/
 5. Verificar conflito rodízio x disponibilidade Alto Mar (FR-014) → leitura combinada de `ROTATION#<data>` e `AVAIL#<data>#alto_mar` na mesma transação de escrita (`TransactWriteItems` com `ConditionCheck`)
 6. Obter/atualizar limite de vagas → `GetItem`/`PutItem`, sem `ConditionExpression` bloqueante (FR-013, Opção C — sempre aceita)
 7. Obter advisory do dia → `GetItem(VESSEL#id, ADVISORY#data)`, escrito só pelo job assíncrono
+8. Verificar se um dia/tipo de passeio tem reserva confirmada, antes de aplicar FR-004 (efeito imediato) ou FR-007 (Saga) → `GetItem(VESSEL#id, BOOKINGCOUNT#data#tipoPasseio)`; mesma checagem, agregada por embarcação, para a remoção de embarcação (FR-002) via `Query(PK=VESSEL#id, SK begins_with BOOKINGCOUNT#)` filtrando datas futuras
 
 ---
 
@@ -129,6 +132,20 @@ O conflito de FR-014 (rodízio x Alto Mar) é resolvido com uma resposta HTTP 40
 2. vessel-management busca outra embarcação do mesmo proprietário com vaga (query local, sem chamar booking).
 3. Se encontrar → publica `vessel.transfer.viable` e aguarda; não altera a disponibilidade original até confirmação do comprador (evento de retorno do booking, fora do escopo deste plano).
 4. Se não encontrar → publica `vessel.cancellation.operator-initiated` imediatamente, com o motivo estruturado (FR-007).
+
+---
+
+## Eventos Consumidos (SQS)
+
+Decisão registrada em 2026-07-12 (mesma lacuna que motivou T059 antes de ser formalizada — ver `tasks-vessel-management.md`): FR-007 exige que o sistema distinga um dia sem reserva (FR-004, efeito imediato) de um dia com reserva confirmada (Saga de transferência/cancelamento), mas o módulo não tem nenhuma visibilidade sobre reservas — esse dado pertence ao módulo booking. Resolvido com réplica local somente-leitura, no mesmo padrão que o booking já usa para replicar disponibilidade/limite de vagas do vessel-management (Princípio IV).
+
+| Tópico (origem: booking) | Consumido para | Efeito |
+|---|---|---|
+| `booking.confirmed` | Manter `BOOKINGCOUNT#<data>#<tipoPasseio>` | Incrementa o contador da réplica local |
+| `booking.cancelled` | Manter `BOOKINGCOUNT#<data>#<tipoPasseio>` + fechar tentativa de transferência (T059) | Decrementa o contador da réplica local; se a origem for uma oferta de transferência (`vessel.transfer.viable`) não aceita/expirada, também fecha o registro em `TRANSFER#<transferId>` (T059, sem ação adicional de dados) |
+| `booking.transferred` | Fechar tentativa de transferência (T059) | Move a reserva para a embarcação/dia de destino combinado, atualizando `DeclaredAvailability`/`SEATLIMIT` do destino — não afeta `BOOKINGCOUNT` da embarcação original (a reserva não foi cancelada, só migrou de embarcação) |
+
+Ambos os tópicos já existem no módulo booking (`booking.cancelled`, `booking.transferred` — ver `plan-booking.md`, T053-T055); `booking.confirmed` é consumido aqui pela primeira vez especificamente para popular `BOOKINGCOUNT`. A fila SQS de suporte (T006b) assina os três.
 
 ---
 
