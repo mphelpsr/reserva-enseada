@@ -84,7 +84,7 @@ vessel-management/
 | `VESSEL#<vesselId>` | `ADVISORY#<data>` | Indicador de maré/previsão, gerado pelo job assíncrono (FR-006) |
 | `VESSEL#<vesselId>` | `TRANSFER#<transferId>` | Registro de tentativa/execução de transferência (FR-002, FR-007) |
 | `VESSEL#<vesselId>` | `BOOKINGCOUNT#<data>#<tipoPasseio>` | Réplica local do nº de reservas confirmadas naquele dia/tipo de passeio, mantida via consumo dos eventos `booking.confirmed`/`booking.cancelled` publicados pelo módulo booking (ver "Eventos Consumidos" abaixo). Único propósito: decidir entre FR-004 (efeito imediato, contador zero) e FR-007 (Saga de transferência/cancelamento, contador > 0) ao tornar um dia indisponível ou remover uma embarcação — não é fonte de verdade de reservas, essa é do módulo booking |
-| `OWNER#<ownerId>` | `METADATA` | Dados cadastrais do proprietário, incluindo `payment_recebedor_id` (FR-016) |
+| `OWNER#<ownerId>` | `METADATA` | Dados cadastrais do proprietário, incluindo `payment_recebedor_id` (FR-016 — chave Pix do proprietário desde 2026-07-12, não mais subconta de gateway) |
 | `OWNER#<ownerId>` | `VESSEL#<vesselId>` | Item de índice para listar embarcações por proprietário |
 
 **GSI1** (`GSI1PK = OWNER#<ownerId>`, `GSI1SK = VESSEL#<vesselId>`): suporta o access pattern "listar embarcações de um proprietário" (FR-010) sem scan.
@@ -126,7 +126,7 @@ O conflito de FR-014 (rodízio x Alto Mar) é resolvido com uma resposta HTTP 40
 | `vessel.seatlimit.changed` | FR-015 | booking (recalcula vagas restantes: `max(0, limite − vendidas − retidas)`) |
 | `vessel.cancellation.operator-initiated` | FR-007 (após tentativa de transferência falhar) | booking (FR-008 do spec-booking: reembolso integral automático) |
 | `vessel.transfer.viable` | FR-007 (transferência encontrada) | booking (FR-009 do spec-booking: notifica comprador, exige confirmação) |
-| `vessel.recebedor.changed` | **Adiado em 2026-07-12** (mesma data em que foi identificado) — ver nota na tabela "Eventos Consumidos" abaixo e em `spec.md` (FR-016): o modelo de recebedor por proprietário que motivou este evento está sendo repensado (conta única da plataforma), então este publisher não vai ser implementado no formato original | booking (réplica local `VESSEL#id/RECEBEDOR`, consultada em `ConfirmBookingUseCase`) — **hoje só semeada diretamente em teste, nunca por este evento** |
+| `vessel.recebedor.changed` | **Retomado em 2026-07-12** — modelo de destino definido: chave Pix do proprietário (via provedor de split Pix, ex. Transfeera/OpenPix), não mais subconta de gateway. Publisher volta a ser implementável (T059c) | booking (réplica local `VESSEL#id/RECEBEDOR`, consultada em `ConfirmBookingUseCase`) — payload muda de `recebedorId` para `pixKey` |
 
 **Fluxo de cancelamento (Princípio VII) como Saga leve:**
 1. Proprietário tenta tornar dia indisponível com reservas confirmadas.
@@ -164,7 +164,7 @@ Revisão feita antes de iniciar a implementação do módulo booking, para os do
 | `vessel.seatlimit.changed` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", limite: int}` |
 | `vessel.cancellation.operator-initiated` | `{vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", motivo: string}` |
 | `vessel.transfer.viable` | `{id: string, vesselId: string, data: "yyyy-MM-dd", tipoPasseio: "alto_mar"\|"orla", targetVesselId: string, motivo: string}` — `id` é o `BookingTransferAttempt.id` (chave `TRANSFER#<id>` em `VESSEL#<vesselId>`); `motivo` foi adicionado nesta revisão (faltava — o comprador precisa do motivo real na notificação de transferência, mesma exigência já aplicada ao cancelamento) |
-| `vessel.recebedor.changed` | `{vesselId: string, recebedorId: string}` | **ADIADO em 2026-07-12** (T059c) — decisão de produto: o proprietário não vai ter subconta própria no gateway; a plataforma pretende receber numa conta única (CNPJ próprio) e repassar por fora do Pagar.me. Isso torna a premissa original deste evento (um `payment_recebedor_id` POR PROPRIETÁRIO, publicado por embarcação) obsoleta antes mesmo de ser implementada — não faz mais sentido escrever o ponto de escrita que T059c pedia. Ver nota em `spec.md` (FR-016) e em `spec-booking.md` (FR-015) para o novo modelo pretendido (ainda não desenhado nem codificado). Este evento fica sem implementação prevista até o modelo de repasse ser desenhado — se/quando isso acontecer, provavelmente deixa de ser "por embarcação" (não há mais um recebedor por proprietário para propagar). |
+| `vessel.recebedor.changed` | `{vesselId: string, pixKey: string}` | **RETOMADO em 2026-07-12** (T059c deixa de estar adiada) — decisão de produto confirmada: o proprietário não terá subconta própria no gateway; o repasse passa a ser split instantâneo via Pix, direto para a chave Pix cadastrada (via provedor como Transfeera/OpenPix, que dispensa cadastro do recebedor). Payload renomeado de `recebedorId` para `pixKey` em relação à proposta original. Ver nota em `spec.md` (FR-016) e em `spec-booking.md` (FR-015) para o modelo completo (captura de cartão via Pagar.me continua igual; só o repasse ao proprietário muda). |
 
 **Consumidos deste módulo, publicados pelo booking (T053-T055 de `tasks-booking.md`) — CONFIRMADOS nesta revisão:**
 
@@ -184,7 +184,7 @@ Revisão feita antes de iniciar a implementação do módulo booking, para os do
 
 - Lógica de decremento de vagas e checkout (spec-booking, plan próprio).
 - Dashboard mobile do proprietário (spec e plan futuros, Princípio III).
-- **Redesenho do modelo de repasse de pagamento (decisão de 2026-07-12, fora de escopo até ser desenhado)**: a plataforma pretende receber 100% de cada venda numa conta única do Pagar.me (CNPJ próprio) e repassar o valor líquido ao proprietário por fora do gateway, em vez do modelo atual (FR-016) de subconta/recebedor por proprietário com split automático no Pagar.me. O mecanismo de repasse em si (frequência, forma de pagamento ao proprietário, conciliação) ainda não foi desenhado — este plano continua descrevendo e este módulo continua implementando o modelo ATUAL (FR-016, `payment_recebedor_id` por proprietário) até essa decisão amadurecer. T059c (publisher `vessel.recebedor.changed`) fica adiada por causa disso — ver "Eventos Consumidos"/"Contrato da Saga" acima.
+- **Integração com provedor de split Pix (decisão de 2026-07-12, confirmada, implementação fora deste plano)**: o repasse ao proprietário passa a ser split instantâneo via Pix, direto para a chave Pix cadastrada em `payment_recebedor_id` (FR-016), usando um provedor como Transfeera/OpenPix — sem custódia da plataforma e sem cadastro de subconta pelo proprietário, substituindo o modelo original de recebedor/subconta no Pagar.me. T059c (publisher `vessel.recebedor.changed`) deixa de estar adiada e volta a fazer parte do escopo executável — ver "Eventos Consumidos"/"Contrato da Saga" acima para o payload atualizado (`pixKey` em vez de `recebedorId`). A integração técnica com o provedor de split em si (chamadas de API, tratamento de erro) é implementação do módulo booking, não deste plano.
 
 ---
 
