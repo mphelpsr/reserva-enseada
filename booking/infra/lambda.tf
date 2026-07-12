@@ -26,6 +26,13 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 locals {
   dynamodb_table_arn = aws_dynamodb_table.booking.arn
   dynamodb_gsi1_arn  = "${aws_dynamodb_table.booking.arn}/index/GSI1"
+
+  # T061: SES só suporta restringir a Resource pela identidade (domínio), não
+  # por template — Resource = "*" só quando var.ses_domain está vazio (modo
+  # dev/local, mesma condicional de aws_ses_domain_identity.transactional em
+  # ses.tf); em produção (ses_domain configurado) fica restrito à identidade
+  # verificada.
+  ses_identity_resource = var.ses_domain != "" ? aws_ses_domain_identity.transactional[0].arn : "*"
 }
 
 # ---------------------------------------------------------------------------
@@ -93,7 +100,7 @@ resource "aws_iam_role_policy" "api_lambda_ses" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ses:SendEmail", "ses:SendTemplatedEmail"]
-      Resource = "*"
+      Resource = local.ses_identity_resource
     }]
   })
 }
@@ -212,7 +219,7 @@ resource "aws_iam_role_policy" "operator_events_consumer_ses" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ses:SendEmail", "ses:SendTemplatedEmail"]
-      Resource = "*"
+      Resource = local.ses_identity_resource
     }]
   })
 }
