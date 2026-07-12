@@ -15,6 +15,8 @@ import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
 import software.amazon.awssdk.enhanced.dynamodb.Key;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
@@ -49,6 +51,25 @@ public class SeatCountRepository {
                 .partitionValue("VESSEL#" + vesselId)
                 .sortValue(SeatCount.skFor(data, tipoPasseio))
                 .build()));
+    }
+
+    /**
+     * FR-001/FR-002: sinal de "esta embarcação existe" para GetVesselCalendarReadModelUseCase —
+     * este módulo nunca recebe um evento dedicado a "embarcação registrada", só réplica
+     * disponibilidade/limite; então "nunca recebemos NENHUM SeatCount para este vesselId"
+     * é o único proxy disponível para distinguir embarcação inexistente de embarcação
+     * existente sem dado ainda para o intervalo pedido.
+     */
+    public boolean existsForVessel(String vesselId) {
+        QueryConditional condition = QueryConditional.sortBeginsWith(Key.builder()
+                .partitionValue("VESSEL#" + vesselId)
+                .sortValue("SEATCOUNT#")
+                .build());
+        return table.query(QueryEnhancedRequest.builder().queryConditional(condition).limit(1).build())
+                .stream()
+                .flatMap(page -> page.items().stream())
+                .findAny()
+                .isPresent();
     }
 
     /** FR-003: incrementa `held` só se sobrar capacidade — false = vagas insuficientes. */

@@ -1,6 +1,7 @@
 package com.empresa.booking.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.empresa.booking.application.exception.VesselNotFoundException;
 import com.empresa.booking.domain.availability.TourType;
 import com.empresa.booking.domain.seathold.SeatCount;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
@@ -28,6 +30,7 @@ class GetVesselCalendarReadModelUseCaseTest {
         SeatCount altoMar = SeatCount.builder()
                 .vesselId("vessel-1").data(data).tipoPasseio(TourType.ALTO_MAR)
                 .limite(10).sold(3).held(2).disponivel(true).motivo(null).build();
+        when(seatCountRepository.existsForVessel("vessel-1")).thenReturn(true);
         when(seatCountRepository.findByVesselDateType("vessel-1", data, TourType.ALTO_MAR)).thenReturn(Optional.of(altoMar));
         when(seatCountRepository.findByVesselDateType("vessel-1", data, TourType.ORLA)).thenReturn(Optional.empty());
 
@@ -48,6 +51,7 @@ class GetVesselCalendarReadModelUseCaseTest {
         SeatCount comAlerta = SeatCount.builder()
                 .vesselId("vessel-1").data(data).tipoPasseio(TourType.ALTO_MAR)
                 .limite(10).sold(0).held(0).disponivel(true).motivo("maré alta prevista").build();
+        when(seatCountRepository.existsForVessel("vessel-1")).thenReturn(true);
         when(seatCountRepository.findByVesselDateType("vessel-1", data, TourType.ALTO_MAR)).thenReturn(Optional.of(comAlerta));
         when(seatCountRepository.findByVesselDateType("vessel-1", data, TourType.ORLA)).thenReturn(Optional.empty());
 
@@ -57,5 +61,15 @@ class GetVesselCalendarReadModelUseCaseTest {
         VesselCalendar.DiaTipoPasseio altoMar = calendar.dias().get(0).altoMar();
         assertThat(altoMar.disponivel()).isTrue();
         assertThat(altoMar.motivo()).isEqualTo("maré alta prevista");
+    }
+
+    @Test
+    void deveLancarNotFoundParaEmbarcacaoNuncaAnunciada() {
+        LocalDate data = LocalDate.of(2026, 12, 20);
+        when(seatCountRepository.existsForVessel("inexistente")).thenReturn(false);
+
+        GetVesselCalendarReadModelUseCase useCase = new GetVesselCalendarReadModelUseCase(seatCountRepository);
+
+        assertThatThrownBy(() -> useCase.getCalendar("inexistente", data, data)).isInstanceOf(VesselNotFoundException.class);
     }
 }

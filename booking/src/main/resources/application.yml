@@ -19,6 +19,17 @@ app:
     booking-confirmed-topic-arn: ${SNS_BOOKING_CONFIRMED_ARN:}
     booking-cancelled-topic-arn: ${SNS_BOOKING_CANCELLED_ARN:}
     booking-transferred-topic-arn: ${SNS_BOOKING_TRANSFERRED_ARN:}
+  ses:
+    # FR-010 — best-effort: vazio (source-email ou o Buyer correspondente
+    # não encontrado) pula o envio sem falhar o fluxo principal, mesma
+    # resiliência de app.sns acima. Nomes dos templates batem com
+    # infra/ses.tf (aws_ses_template).
+    region: ${AWS_REGION:sa-east-1}
+    endpoint-override: ${SES_ENDPOINT_OVERRIDE:}
+    source-email: ${SES_SOURCE_EMAIL:}
+    booking-confirmed-template: ${SES_BOOKING_CONFIRMED_TEMPLATE:}
+    booking-cancelled-template: ${SES_BOOKING_CANCELLED_TEMPLATE:}
+    booking-transferred-template: ${SES_BOOKING_TRANSFERRED_TEMPLATE:}
   payment:
     # split de pagamento (FR-015) — comissão configurável, nunca hardcoded no
     # código; vazio em dev/teste local pula a chamada real ao Pagar.me.

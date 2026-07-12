@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import com.empresa.booking.application.exception.VesselNotFoundException;
 import com.empresa.booking.domain.availability.TourType;
 import com.empresa.booking.domain.seathold.SeatCount;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
@@ -16,16 +17,11 @@ import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
  * `vessel.seatlimit.changed` — T049/T050) — nunca calcula nada por conta
  * própria, só reflete o que o vessel-management já decidiu.
  *
- * LIMITAÇÃO CONHECIDA: este módulo não replica "a embarcação existe" (nenhum
- * evento consumido carrega esse dado — só mudanças de disponibilidade/limite
- * de um vessel presumivelmente já conhecido). Por isso não há como
- * distinguir "embarcação inexistente" de "embarcação existente sem nenhum
- * dado ainda para o intervalo pedido" — os dois casos retornam o mesmo
- * resultado (200, todo dia/tipo mostrando indisponível/zero vagas). Corrigir
- * exigiria mais um evento replicado (ex.: `vessel.registered`), seguindo o
- * mesmo padrão já usado para os outros 5 eventos — mesma "forma" de solução
- * das lacunas já resolvidas (`vessel.recebedor.changed`), não uma decisão de
- * arquitetura nova; documentado aqui em vez de bloquear a Fase 3.3 por isso.
+ * Sem um evento dedicado a "embarcação registrada", `SeatCountRepository.existsForVessel`
+ * (T049/T050 já terem escrito PELO MENOS um SeatCount para este vesselId) é o
+ * proxy usado para "a embarcação existe" — distingue embarcação nunca
+ * anunciada (404) de embarcação conhecida sem dado para o intervalo pedido
+ * (200, indisponível/zero vagas nesse trecho).
  */
 @Service
 public class GetVesselCalendarReadModelUseCase {
@@ -37,6 +33,10 @@ public class GetVesselCalendarReadModelUseCase {
     }
 
     public VesselCalendar getCalendar(String vesselId, LocalDate from, LocalDate to) {
+        if (!seatCountRepository.existsForVessel(vesselId)) {
+            throw new VesselNotFoundException(vesselId);
+        }
+
         List<VesselCalendar.Dia> dias = from.datesUntil(to.plusDays(1))
                 .map(data -> new VesselCalendar.Dia(
                         data,

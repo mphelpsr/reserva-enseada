@@ -4,14 +4,17 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import com.empresa.booking.application.event.BookingCancelledEvent;
 import com.empresa.booking.domain.availability.TourType;
 import com.empresa.booking.domain.booking.Booking;
 import com.empresa.booking.domain.booking.BookingStatus;
 import com.empresa.booking.domain.operatorevents.OperatorInitiatedCancellation;
 import com.empresa.booking.infrastructure.dynamodb.BookingRepository;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
+import com.empresa.booking.infrastructure.messaging.SesEmailNotifier;
 
 /**
  * T042. Consumidor de `vessel.cancellation.operator-initiated` (FR-008,
@@ -32,10 +35,18 @@ public class ProcessOperatorCancellationUseCase {
 
     private final BookingRepository bookingRepository;
     private final SeatCountRepository seatCountRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final SesEmailNotifier emailNotifier;
 
-    public ProcessOperatorCancellationUseCase(BookingRepository bookingRepository, SeatCountRepository seatCountRepository) {
+    public ProcessOperatorCancellationUseCase(
+            BookingRepository bookingRepository,
+            SeatCountRepository seatCountRepository,
+            ApplicationEventPublisher eventPublisher,
+            SesEmailNotifier emailNotifier) {
         this.bookingRepository = bookingRepository;
         this.seatCountRepository = seatCountRepository;
+        this.eventPublisher = eventPublisher;
+        this.emailNotifier = emailNotifier;
     }
 
     public void process(OperatorInitiatedCancellation event) {
@@ -53,6 +64,10 @@ public class ProcessOperatorCancellationUseCase {
             booking.setMotivo(event.motivo());
             bookingRepository.save(booking);
             seatCountRepository.decrementSold(event.vesselId(), data, tipoPasseio, booking.getQuantidade());
+
+            eventPublisher.publishEvent(new BookingCancelledEvent(
+                    event.vesselId(), event.data(), event.tipoPasseio(), booking.getId(), booking.getTransferAttemptId()));
+            emailNotifier.notifyCancelled(booking, event.motivo());
         }
     }
 }

@@ -46,3 +46,9 @@ variable "ses_domain" {
   type        = string
   default     = ""
 }
+
+variable "ses_source_email" {
+  description = "Endereço \"From\" dos e-mails transacionais (FR-010, T057) — precisa pertencer a var.ses_domain uma vez verificado; vazio faz SesEmailNotifier pular o envio (log only), mesma resiliência de var.pagarme_api_key"
+  type        = string
+  default     = ""
+}

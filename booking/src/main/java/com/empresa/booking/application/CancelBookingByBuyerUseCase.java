@@ -3,8 +3,10 @@ package com.empresa.booking.application;
 import java.time.Instant;
 import java.util.Set;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import com.empresa.booking.application.event.BookingCancelledEvent;
 import com.empresa.booking.application.exception.BookingNotFoundException;
 import com.empresa.booking.application.exception.CancellationWindowExpiredException;
 import com.empresa.booking.domain.booking.Booking;
@@ -12,6 +14,7 @@ import com.empresa.booking.domain.booking.BookingStatus;
 import com.empresa.booking.domain.cancellation.CancellationPolicy;
 import com.empresa.booking.infrastructure.dynamodb.BookingRepository;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
+import com.empresa.booking.infrastructure.messaging.SesEmailNotifier;
 
 /**
  * T040. FR-006/FR-007: cancelamento por desistência do comprador — modelo
@@ -27,10 +30,18 @@ public class CancelBookingByBuyerUseCase {
 
     private final BookingRepository bookingRepository;
     private final SeatCountRepository seatCountRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final SesEmailNotifier emailNotifier;
 
-    public CancelBookingByBuyerUseCase(BookingRepository bookingRepository, SeatCountRepository seatCountRepository) {
+    public CancelBookingByBuyerUseCase(
+            BookingRepository bookingRepository,
+            SeatCountRepository seatCountRepository,
+            ApplicationEventPublisher eventPublisher,
+            SesEmailNotifier emailNotifier) {
         this.bookingRepository = bookingRepository;
         this.seatCountRepository = seatCountRepository;
+        this.eventPublisher = eventPublisher;
+        this.emailNotifier = emailNotifier;
     }
 
     public CancelBookingResult cancel(String bookingId) {
@@ -47,6 +58,11 @@ public class CancelBookingByBuyerUseCase {
         booking.setStatus(BookingStatus.REEMBOLSADA);
         bookingRepository.save(booking);
         seatCountRepository.decrementSold(booking.getVesselId(), booking.getData(), booking.getTipoPasseio(), booking.getQuantidade());
+
+        eventPublisher.publishEvent(new BookingCancelledEvent(
+                booking.getVesselId(), booking.getData().toString(), booking.getTipoPasseio().getValue(),
+                booking.getId(), booking.getTransferAttemptId()));
+        emailNotifier.notifyCancelled(booking, null);
 
         return new CancelBookingResult(BookingStatus.REEMBOLSADA, true);
     }

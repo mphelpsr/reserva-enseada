@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.booking.domain.availability.TourType;
 import com.empresa.booking.domain.booking.Booking;
@@ -19,6 +20,7 @@ import com.empresa.booking.domain.booking.BookingStatus;
 import com.empresa.booking.domain.operatorevents.OperatorInitiatedCancellation;
 import com.empresa.booking.infrastructure.dynamodb.BookingRepository;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
+import com.empresa.booking.infrastructure.messaging.SesEmailNotifier;
 
 /** T042 — FR-008: reembolso integral automático imediato por cancelamento do proprietário. */
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +31,12 @@ class ProcessOperatorCancellationUseCaseTest {
 
     @Mock
     private SeatCountRepository seatCountRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private SesEmailNotifier emailNotifier;
 
     private Booking booking(String id, BookingStatus status) {
         return Booking.builder()
@@ -45,7 +53,8 @@ class ProcessOperatorCancellationUseCaseTest {
         when(bookingRepository.findByVesselDateAndType("vessel-1", LocalDate.of(2026, 12, 20), TourType.ALTO_MAR))
                 .thenReturn(List.of(confirmada, aguardandoTransferencia, jaCancelada));
 
-        ProcessOperatorCancellationUseCase useCase = new ProcessOperatorCancellationUseCase(bookingRepository, seatCountRepository);
+        ProcessOperatorCancellationUseCase useCase =
+                new ProcessOperatorCancellationUseCase(bookingRepository, seatCountRepository, eventPublisher, emailNotifier);
         useCase.process(new OperatorInitiatedCancellation("vessel-1", "2026-12-20", "alto_mar", "avaria no motor"));
 
         assertThat(confirmada.getStatus()).isEqualTo(BookingStatus.REEMBOLSADA);
@@ -67,7 +76,8 @@ class ProcessOperatorCancellationUseCaseTest {
         when(bookingRepository.findByVesselDateAndType("vessel-1", LocalDate.of(2026, 12, 20), TourType.ALTO_MAR))
                 .thenReturn(List.of(transferida, reembolsada));
 
-        ProcessOperatorCancellationUseCase useCase = new ProcessOperatorCancellationUseCase(bookingRepository, seatCountRepository);
+        ProcessOperatorCancellationUseCase useCase =
+                new ProcessOperatorCancellationUseCase(bookingRepository, seatCountRepository, eventPublisher, emailNotifier);
         useCase.process(new OperatorInitiatedCancellation("vessel-1", "2026-12-20", "alto_mar", "avaria no motor"));
 
         verify(bookingRepository, never()).save(org.mockito.ArgumentMatchers.any());

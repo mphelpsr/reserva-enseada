@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.booking.application.exception.HoldNotFoundException;
 import com.empresa.booking.application.exception.PaymentRecebedorNotConfiguredException;
@@ -30,6 +31,7 @@ import com.empresa.booking.infrastructure.dynamodb.BookingRepository;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
 import com.empresa.booking.infrastructure.dynamodb.SeatHoldRepository;
 import com.empresa.booking.infrastructure.dynamodb.VesselRecebedorRepository;
+import com.empresa.booking.infrastructure.messaging.SesEmailNotifier;
 import com.empresa.booking.infrastructure.payment.PagarmeClient;
 import com.empresa.booking.infrastructure.payment.PagarmeOrderResult;
 import com.empresa.booking.infrastructure.payment.PaymentFailedException;
@@ -53,6 +55,12 @@ class ConfirmBookingUseCaseTest {
     @Mock
     private PagarmeClient pagarmeClient;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private SesEmailNotifier emailNotifier;
+
     private final SeatHold hold = SeatHold.builder()
             .id("hold-1").buyerId("buyer-1").vesselId("vessel-1")
             .data(LocalDate.now().plusDays(10)).tipoPasseio(TourType.ALTO_MAR).quantidade(2)
@@ -68,7 +76,8 @@ class ConfirmBookingUseCaseTest {
                 .thenReturn(new PagarmeOrderResult("order-1", "paid"));
 
         ConfirmBookingUseCase useCase = new ConfirmBookingUseCase(
-                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient, 12);
+                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient,
+                eventPublisher, emailNotifier, 12);
         Booking booking = useCase.confirm(new ConfirmBookingCommand("hold-1", "payment-ref-1"));
 
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.CONFIRMADA);
@@ -89,7 +98,8 @@ class ConfirmBookingUseCaseTest {
         when(seatHoldRepository.findById("hold-1")).thenReturn(Optional.of(holdExpirado));
 
         ConfirmBookingUseCase useCase = new ConfirmBookingUseCase(
-                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient, 12);
+                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient,
+                eventPublisher, emailNotifier, 12);
 
         assertThatThrownBy(() -> useCase.confirm(new ConfirmBookingCommand("hold-1", "payment-ref-1")))
                 .isInstanceOf(HoldNotFoundException.class);
@@ -102,7 +112,8 @@ class ConfirmBookingUseCaseTest {
         when(vesselRecebedorRepository.findByVesselId("vessel-1")).thenReturn(Optional.empty());
 
         ConfirmBookingUseCase useCase = new ConfirmBookingUseCase(
-                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient, 12);
+                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient,
+                eventPublisher, emailNotifier, 12);
 
         assertThatThrownBy(() -> useCase.confirm(new ConfirmBookingCommand("hold-1", "payment-ref-1")))
                 .isInstanceOf(PaymentRecebedorNotConfiguredException.class);
@@ -117,7 +128,8 @@ class ConfirmBookingUseCaseTest {
                 .thenReturn(new PagarmeOrderResult("order-1", "refused"));
 
         ConfirmBookingUseCase useCase = new ConfirmBookingUseCase(
-                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient, 12);
+                seatHoldRepository, seatCountRepository, bookingRepository, vesselRecebedorRepository, pagarmeClient,
+                eventPublisher, emailNotifier, 12);
 
         assertThatThrownBy(() -> useCase.confirm(new ConfirmBookingCommand("hold-1", "payment-ref-1")))
                 .isInstanceOf(PaymentFailedException.class);

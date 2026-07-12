@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.booking.application.exception.BookingNotFoundException;
 import com.empresa.booking.application.exception.NoPendingTransferOfferException;
@@ -23,6 +24,7 @@ import com.empresa.booking.domain.booking.Booking;
 import com.empresa.booking.domain.booking.BookingStatus;
 import com.empresa.booking.infrastructure.dynamodb.BookingRepository;
 import com.empresa.booking.infrastructure.dynamodb.SeatCountRepository;
+import com.empresa.booking.infrastructure.messaging.SesEmailNotifier;
 
 /** T041 — FR-009: resposta do comprador a uma oferta de transferência pendente. */
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +35,12 @@ class RespondToTransferUseCaseTest {
 
     @Mock
     private SeatCountRepository seatCountRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private SesEmailNotifier emailNotifier;
 
     private Booking bookingAguardandoTransferencia() {
         return Booking.builder()
@@ -49,7 +57,8 @@ class RespondToTransferUseCaseTest {
         Booking booking = bookingAguardandoTransferencia();
         when(bookingRepository.findById("booking-1")).thenReturn(Optional.of(booking));
 
-        RespondToTransferUseCase useCase = new RespondToTransferUseCase(bookingRepository, seatCountRepository);
+        RespondToTransferUseCase useCase =
+                new RespondToTransferUseCase(bookingRepository, seatCountRepository, eventPublisher, emailNotifier);
         Booking resultado = useCase.respond("booking-1", true);
 
         assertThat(resultado.getStatus()).isEqualTo(BookingStatus.TRANSFERIDA);
@@ -67,7 +76,8 @@ class RespondToTransferUseCaseTest {
         Booking booking = bookingAguardandoTransferencia();
         when(bookingRepository.findById("booking-1")).thenReturn(Optional.of(booking));
 
-        RespondToTransferUseCase useCase = new RespondToTransferUseCase(bookingRepository, seatCountRepository);
+        RespondToTransferUseCase useCase =
+                new RespondToTransferUseCase(bookingRepository, seatCountRepository, eventPublisher, emailNotifier);
         Booking resultado = useCase.respond("booking-1", false);
 
         assertThat(resultado.getStatus()).isEqualTo(BookingStatus.REEMBOLSADA);
@@ -85,7 +95,8 @@ class RespondToTransferUseCaseTest {
         booking.setStatus(BookingStatus.CONFIRMADA);
         when(bookingRepository.findById("booking-1")).thenReturn(Optional.of(booking));
 
-        RespondToTransferUseCase useCase = new RespondToTransferUseCase(bookingRepository, seatCountRepository);
+        RespondToTransferUseCase useCase =
+                new RespondToTransferUseCase(bookingRepository, seatCountRepository, eventPublisher, emailNotifier);
 
         assertThatThrownBy(() -> useCase.respond("booking-1", true)).isInstanceOf(NoPendingTransferOfferException.class);
     }
@@ -94,7 +105,8 @@ class RespondToTransferUseCaseTest {
     void deveLancarNotFoundParaReservaInexistente() {
         when(bookingRepository.findById("inexistente")).thenReturn(Optional.empty());
 
-        RespondToTransferUseCase useCase = new RespondToTransferUseCase(bookingRepository, seatCountRepository);
+        RespondToTransferUseCase useCase =
+                new RespondToTransferUseCase(bookingRepository, seatCountRepository, eventPublisher, emailNotifier);
 
         assertThatThrownBy(() -> useCase.respond("inexistente", true)).isInstanceOf(BookingNotFoundException.class);
     }

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.empresa.booking.domain.availability.TourType;
 import com.empresa.booking.domain.booking.Booking;
@@ -40,6 +41,9 @@ class ReleaseExpiredHoldsJobTest {
     @Mock
     private BookingRepository bookingRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @Test
     void deveLiberarSoHoldsExpiradosERemoveLos() {
         SeatHold expirado = SeatHold.builder()
@@ -51,7 +55,7 @@ class ReleaseExpiredHoldsJobTest {
         when(seatHoldRepository.findAll()).thenReturn(List.of(expirado, vigente));
         when(bookingRepository.findAwaitingTransferExpiredBefore(ArgumentMatchers.any())).thenReturn(List.of());
 
-        new ReleaseExpiredHoldsJob(seatHoldRepository, seatCountRepository, bookingRepository).run();
+        new ReleaseExpiredHoldsJob(seatHoldRepository, seatCountRepository, bookingRepository, eventPublisher).run();
 
         verify(seatCountRepository).decrementHeld("vessel-1", LocalDate.of(2026, 12, 20), TourType.ALTO_MAR, 3);
         verify(seatHoldRepository).delete("hold-expirado");
@@ -69,7 +73,7 @@ class ReleaseExpiredHoldsJobTest {
                 .transferAttemptId("transfer-1").transferOfferExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS)).build();
         when(bookingRepository.findAwaitingTransferExpiredBefore(ArgumentMatchers.any())).thenReturn(List.of(expirada));
 
-        new ReleaseExpiredHoldsJob(seatHoldRepository, seatCountRepository, bookingRepository).run();
+        new ReleaseExpiredHoldsJob(seatHoldRepository, seatCountRepository, bookingRepository, eventPublisher).run();
 
         assertThat(expirada.getStatus()).isEqualTo(BookingStatus.REEMBOLSADA);
         assertThat(expirada.getTargetVesselId()).isNull();
@@ -88,7 +92,7 @@ class ReleaseExpiredHoldsJobTest {
                 .transferAttemptId("transfer-1").transferOfferExpiresAt(Instant.now().minus(1, ChronoUnit.HOURS)).build();
         when(bookingRepository.findAwaitingTransferExpiredBefore(ArgumentMatchers.any())).thenReturn(List.of(semDadosCompletos));
 
-        new ReleaseExpiredHoldsJob(seatHoldRepository, seatCountRepository, bookingRepository).run();
+        new ReleaseExpiredHoldsJob(seatHoldRepository, seatCountRepository, bookingRepository, eventPublisher).run();
 
         assertThat(semDadosCompletos.getStatus()).isEqualTo(BookingStatus.REEMBOLSADA);
         verify(seatCountRepository, never()).decrementSold(

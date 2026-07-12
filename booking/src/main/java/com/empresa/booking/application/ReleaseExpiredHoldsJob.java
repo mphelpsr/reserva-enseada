@@ -3,8 +3,10 @@ package com.empresa.booking.application;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
+import com.empresa.booking.application.event.BookingCancelledEvent;
 import com.empresa.booking.domain.booking.Booking;
 import com.empresa.booking.domain.booking.BookingStatus;
 import com.empresa.booking.domain.seathold.SeatHold;
@@ -32,12 +34,17 @@ public class ReleaseExpiredHoldsJob implements Runnable {
     private final SeatHoldRepository seatHoldRepository;
     private final SeatCountRepository seatCountRepository;
     private final BookingRepository bookingRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ReleaseExpiredHoldsJob(
-            SeatHoldRepository seatHoldRepository, SeatCountRepository seatCountRepository, BookingRepository bookingRepository) {
+            SeatHoldRepository seatHoldRepository,
+            SeatCountRepository seatCountRepository,
+            BookingRepository bookingRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.seatHoldRepository = seatHoldRepository;
         this.seatCountRepository = seatCountRepository;
         this.bookingRepository = bookingRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -63,6 +70,14 @@ public class ReleaseExpiredHoldsJob implements Runnable {
                 seatCountRepository.decrementSold(
                         booking.getVesselId(), booking.getData(), booking.getTipoPasseio(), booking.getQuantidade());
             }
+
+            eventPublisher.publishEvent(new BookingCancelledEvent(
+                    booking.getVesselId(),
+                    booking.getData() == null ? null : booking.getData().toString(),
+                    booking.getTipoPasseio() == null ? null : booking.getTipoPasseio().getValue(),
+                    booking.getId(),
+                    booking.getTransferAttemptId()));
+
             booking.setStatus(BookingStatus.REEMBOLSADA);
             booking.setTargetVesselId(null);
             booking.setTransferAttemptId(null);
